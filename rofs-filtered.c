@@ -78,7 +78,7 @@ static int log1(const char* src, const char* msg) {
 }
 
 static int should_hide(const char *name) {
-    return 0;
+    //return 0;
     static const char *flac = ".flac";
     const size_t flen = strlen(flac);
     size_t name_len = strlen(name);
@@ -124,6 +124,8 @@ static int callback_getattr(const char *path, struct stat *st_data)
 
 static int callback_readlink(const char *path, char *buf, size_t size)
 {
+    if (should_hide(path)) return -ENOENT;
+
     int res;
     char *trpath=translate_path(path);
 	
@@ -143,9 +145,10 @@ static int callback_readlink(const char *path, char *buf, size_t size)
 static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi)
 {
+    if (should_hide(path)) return -ENOENT;
+
     DIR *dp;
     struct dirent *de;
-    int res;
 
     (void) offset;
     (void) fi;
@@ -160,18 +163,12 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     dp = opendir(trpath);
     free(trpath);
     if(dp == NULL) {
-        res = -errno;
-        return res;
+        return -errno;
     }
 
-    static const char *flac = ".flac";
-    const size_t flen = strlen(flac);
-
     while((de = readdir(dp)) != NULL) {
-        size_t name_len = strlen(de->d_name);
-        if (name_len > flen &&
-            strcasestr(de->d_name + (name_len - flen), ".flac")) {
-            // hide flac files and directories
+        if (should_hide(de->d_name)) {
+            // hide some files and directories
         } else {
             struct stat st;
             memset(&st, 0, sizeof(st));
@@ -183,6 +180,7 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     }
 
     closedir(dp);
+    log1("readdir: ", path);
     return 0;
 }
 
@@ -222,6 +220,8 @@ static int callback_symlink(const char *from, const char *to)
 
 static int callback_rename(const char *from, const char *to)
 {
+    if (should_hide(from)) return -ENOENT;
+
   (void)from;
   (void)to;
   return -EPERM;
@@ -236,6 +236,8 @@ static int callback_link(const char *from, const char *to)
 
 static int callback_chmod(const char *path, mode_t mode)
 {
+    if (should_hide(path)) return -ENOENT;
+
   (void)path;
   (void)mode;
   return -EPERM;
@@ -244,6 +246,8 @@ static int callback_chmod(const char *path, mode_t mode)
 
 static int callback_chown(const char *path, uid_t uid, gid_t gid)
 {
+    if (should_hide(path)) return -ENOENT;
+
   (void)path;
   (void)uid;
   (void)gid;
@@ -252,6 +256,8 @@ static int callback_chown(const char *path, uid_t uid, gid_t gid)
 
 static int callback_truncate(const char *path, off_t size)
 {
+    if (should_hide(path)) return -ENOENT;
+
 	(void)path;
   	(void)size;
   	return -EPERM;
@@ -266,6 +272,8 @@ static int callback_utime(const char *path, struct utimbuf *buf)
 
 static int callback_open(const char *path, struct fuse_file_info *finfo)
 {
+    if (should_hide(path)) return -ENOENT;
+
     int res;
 
     /* We allow opens, unless they're tring to write, sneaky
@@ -274,7 +282,7 @@ static int callback_open(const char *path, struct fuse_file_info *finfo)
     int flags = finfo->flags;
 
     if ((flags & O_WRONLY) || (flags & O_RDWR) || (flags & O_CREAT) || (flags & O_EXCL) || (flags & O_TRUNC)) {
-        return -errno;
+        return -EPERM;
     }
   	
     char *trpath=translate_path(path);
@@ -294,11 +302,16 @@ static int callback_open(const char *path, struct fuse_file_info *finfo)
     // Why are we closing it after opening it?
     // How do we return the file descriptor?
     // Why is the finfo arg unused?
+    //
+    // This function should just check if the operation is permitted for the given flags.
+    // FUSE will provide it's own file descriptor to the calling application.
     return 0;
 }
 
 static int callback_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *finfo)
 {
+    if (should_hide(path)) return -ENOENT;
+
     int fd;
     int res;
     (void)finfo;
@@ -309,15 +322,16 @@ static int callback_read(const char *path, char *buf, size_t size, off_t offset,
         errno = ENOMEM;
         return -errno;
     }
+
+    errno = 0;
     fd = open(trpath, O_RDONLY);
     free(trpath);
-    if(fd == -1) {
-        res = -errno;
-        return res;
-    } 
+    if (fd == -1) return -errno;
+
+    errno = 0;
     res = pread(fd, buf, size, offset);
     
-    if(res == -1) {
+    if (res == -1) {
         res = -errno;
     }
     close(fd);
@@ -326,6 +340,8 @@ static int callback_read(const char *path, char *buf, size_t size, off_t offset,
 
 static int callback_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *finfo)
 {
+    if (should_hide(path)) return -ENOENT;
+
   (void)path;
   (void)buf;
   (void)size;
@@ -334,8 +350,10 @@ static int callback_write(const char *path, const char *buf, size_t size, off_t 
   return -EPERM;
 }
 
-static int callback_statfs(const char *path, struct statfs *st_buf)
+static int callback_statfs(const char *path, struct statvfs *st_buf)
 {
+    if (should_hide(path)) return -ENOENT;
+
     int res;
     char *trpath=translate_path(path);
 	
@@ -344,7 +362,7 @@ static int callback_statfs(const char *path, struct statfs *st_buf)
         return -errno;
     }
 
-    res = statfs(trpath, st_buf);
+    res = statvfs(trpath, st_buf);
     free(trpath);
     if (res == -1) {
         return -errno;
@@ -369,6 +387,8 @@ static int callback_fsync(const char *path, int crap, struct fuse_file_info *fin
 
 static int callback_access(const char *path, int mode)
 {
+    if (should_hide(path)) return -ENOENT;
+
     if (mode & W_OK) return -1; // We are ReadOnly
 
     int res;
@@ -393,6 +413,8 @@ static int callback_access(const char *path, int mode)
  */
 static int callback_setxattr(const char *path, const char *name, const char *value, size_t size, int flags)
 {
+    if (should_hide(path)) return -ENOENT;
+
 	(void)path;
 	(void)name;
 	(void)value;
@@ -406,6 +428,8 @@ static int callback_setxattr(const char *path, const char *name, const char *val
  */
 static int callback_getxattr(const char *path, const char *name, char *value, size_t size)
 {
+    if (should_hide(path)) return -ENOENT;
+
     int res;
     
     char *trpath=translate_path(path);
@@ -427,6 +451,8 @@ static int callback_getxattr(const char *path, const char *name, char *value, si
  */
 static int callback_listxattr(const char *path, char *list, size_t size)
 {
+    if (should_hide(path)) return -ENOENT;
+
     int res;
 	
     char *trpath=translate_path(path);
@@ -450,6 +476,8 @@ static int callback_listxattr(const char *path, char *list, size_t size)
  */
 static int callback_removexattr(const char *path, const char *name)
 {
+    if (should_hide(path)) return -ENOENT;
+
 	(void)path;
   	(void)name;
   	return -EPERM;
