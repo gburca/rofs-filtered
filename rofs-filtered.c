@@ -6,14 +6,15 @@
  *
  * This FUSE file system allows the user to mount a directory read-only and filter
  * the files shown in the read-only directory based on regular expressions found in
- * the optional /etc/rofs-filtered.rc configuration file.
+ * the optional /etc/rofs-filtered.rc configuration file. See the rofs-filtered.rc
+ * file for more details.
  *
  * What's the use of such a file system? Say you have a ton of *.flac music
- * files, along with the transcoded *.mp3 files in the same directory
- * structure. You'll want to show only one of the formats to music players that
- * can play both flac and mp3 so that the songs don't show up twice. You might
- * also want to show only mp3 files to players that don't understand the flac
- * format.
+ * files, along with the transcoded *.mp3 files in the same directory tree
+ * structure. Maybe you want to show only one of the formats to music players
+ * that can play both flac and mp3 so that the songs don't show up twice. You
+ * might also want to show only mp3 files to players that don't understand the
+ * flac format.
  * 
  * Based on:
  * ROFS - The read-only filesystem for FUSE.
@@ -23,7 +24,9 @@
  * debuntu.org by adding the following line to /etc/apt/sources.list:
  *      deb http://repository.debuntu.org/ dapper multiverse
  *
- * Compile using: gcc -o rofs-filtered -Wall -ansi -W -std=c99 -g -ggdb -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -lfuse rofs-filtered.c
+ * Compile using:
+ * make
+ * make install
  *
  * Mount by adding the following line to /etc/fstab:
  * /full/path/to/rofs-filtered#/the/read/write/device /the/read/only/mount/point fuse defaults,allow_other 0 0
@@ -35,9 +38,9 @@
  * The user might need to be in the "fuse" UNIX group.
  * 
  * Contributors:
- * Lars Kotthoff
+ * Lars Kotthoff <lars@larsko.org>
  * - Added the "-c" command line option
- * - Added the Makefile and ebuild script
+ * - Added the Makefile
  *********************************************************************************
  * Copyright (C) 2006-2007  Gabriel Burca (gburca dash fuse at ebixio dot com)
  *

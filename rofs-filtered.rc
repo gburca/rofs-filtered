@@ -1,0 +1,18 @@
+# vim: set filetype=conf :
+#
+# Configuration file for rofs-filtered (filtered ReadOnlyFileSystem)
+#
+# This file is only read at start-up, so after modifying it, umount and
+# re-mount the directory to make it take effect.
+#
+# Each line below should contain a regular expression pattern that matches the
+# files to be filtered out (or hidden).
+#
+# Comments must start with '#' in the first column.
+# If the pattern is supposed to start with '#', use '\#' instead.
+#
+
+.*\.flac$
+
+# folder\.jpg
+

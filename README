@@ -1,0 +1,3 @@
+This code implements a read-only file system using FUSE. In addition, it
+filters out the visible files/directories based on a user-provided
+configuration file.
