@@ -41,28 +41,10 @@
 #include <fuse.h>
 
 
-#ifdef linux
-/* For pread()/pwrite() */
-#define _XOPEN_SOURCE 500
-#endif
-
-#include <fuse.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <dirent.h>
-#include <errno.h>
-#include <sys/time.h>
-#ifdef HAVE_SETXATTR
-#include <sys/xattr.h>
-#endif
-
-
 // Global to store our read-write path
-//char *rw_path;
-static const char rw_path[] = "/data/Music-All";
+char *rw_path;
 static const char logf[] = "/tmp/rofs.log";
+
 
 // Translate an rofs path into it's underlying filesystem path
 static char* translate_path(const char* path)
@@ -110,6 +92,7 @@ static int should_hide(const char *name) {
 }
 
 
+
 /******************************
  *   
  * Callbacks for FUSE
@@ -136,13 +119,11 @@ static int callback_getattr(const char *path, struct stat *st_data)
     }
     // Remove write permissions = chmod a-w
     st_data->st_mode &= ~(S_IWUSR | S_IWGRP | S_IWOTH);
-    log1("getattr: ", path);
     return 0;
 }
 
 static int callback_readlink(const char *path, char *buf, size_t size)
 {
-    if (should_hide(path)) return -ENOENT;
     int res;
     char *trpath=translate_path(path);
 	
@@ -164,6 +145,7 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 {
     DIR *dp;
     struct dirent *de;
+    int res;
 
     (void) offset;
     (void) fi;
@@ -178,11 +160,17 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     dp = opendir(trpath);
     free(trpath);
     if(dp == NULL) {
-        return -errno;
+        res = -errno;
+        return res;
     }
 
+    static const char *flac = ".flac";
+    const size_t flen = strlen(flac);
+
     while((de = readdir(dp)) != NULL) {
-        if (should_hide(de->d_name)) {
+        size_t name_len = strlen(de->d_name);
+        if (name_len > flen &&
+            strcasestr(de->d_name + (name_len - flen), ".flac")) {
             // hide flac files and directories
         } else {
             struct stat st;
@@ -195,7 +183,6 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     }
 
     closedir(dp);
-    log1("readdir: ", path);
     return 0;
 }
 
@@ -279,9 +266,7 @@ static int callback_utime(const char *path, struct utimbuf *buf)
 
 static int callback_open(const char *path, struct fuse_file_info *finfo)
 {
-    if (should_hide(path)) return -ENOENT;
     int res;
-    log1("open: ", path);
 
     /* We allow opens, unless they're tring to write, sneaky
      * people.
@@ -289,11 +274,11 @@ static int callback_open(const char *path, struct fuse_file_info *finfo)
     int flags = finfo->flags;
 
     if ((flags & O_WRONLY) || (flags & O_RDWR) || (flags & O_CREAT) || (flags & O_EXCL) || (flags & O_TRUNC)) {
-        return -EPERM;
+        return -errno;
     }
-
+  	
     char *trpath=translate_path(path);
-
+	
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
@@ -305,30 +290,13 @@ static int callback_open(const char *path, struct fuse_file_info *finfo)
     if(res == -1) {
         return -errno;
     }
-    finfo->fh = res;
-
-    //close(res);
+    close(res);
     // Why are we closing it after opening it?
     // How do we return the file descriptor?
     // Why is the finfo arg unused?
     return 0;
 }
 
-static int callback_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *finfo)
-{
-    if (should_hide(path)) return -ENOENT;
-    int res;
-    (void)path;
-    log1("read: ", path);
-
-    res = pread(finfo->fh, buf, size, offset);
-    
-    if (res == -1) res = -errno;
-
-    return res;
-}
-
-/*
 static int callback_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *finfo)
 {
     int fd;
@@ -343,36 +311,18 @@ static int callback_read(const char *path, char *buf, size_t size, off_t offset,
     }
     fd = open(trpath, O_RDONLY);
     free(trpath);
-    if (fd == -1) return -errno;
-
+    if(fd == -1) {
+        res = -errno;
+        return res;
+    } 
     res = pread(fd, buf, size, offset);
     
-    if (res == -1) res = -errno;
-
+    if(res == -1) {
+        res = -errno;
+    }
     close(fd);
     return res;
 }
-*/
-
-static int callback_flush(const char *path, struct fuse_file_info *fi)
-{
-    if (should_hide(path)) return -ENOENT;
-    int res;
-
-    //(void) path;
-    log1("flush: ", path);
-    /* This is called from every close on an open file, so call the
-       close on the underlying filesystem.  But since flush may be
-       called multiple times for an open file, this must not really
-       close the file.  This is important if used on a network
-       filesystem like NFS which flush the data/metadata on close() */
-    res = close(dup(fi->fh));
-    if (res == -1)
-        return -errno;
-
-    return 0;
-}
-
 
 static int callback_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *finfo)
 {
@@ -386,11 +336,9 @@ static int callback_write(const char *path, const char *buf, size_t size, off_t 
 
 static int callback_statfs(const char *path, struct statfs *st_buf)
 {
-    if (should_hide(path)) return -ENOENT;
     int res;
     char *trpath=translate_path(path);
-
-    log1("statfs: ", path);
+	
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
@@ -404,23 +352,12 @@ static int callback_statfs(const char *path, struct statfs *st_buf)
     return 0;
 }
 
-static int callback_release(const char *path, struct fuse_file_info *fi)
-{
-    if (should_hide(path)) return -ENOENT;
-    (void) path;
-    close(fi->fh);
-
-    return 0;
-}
-
-/*
 static int callback_release(const char *path, struct fuse_file_info *finfo)
 {
   (void) path;
   (void) finfo;
   return 0;
 }
-*/
 
 static int callback_fsync(const char *path, int crap, struct fuse_file_info *finfo)
 {
@@ -430,10 +367,10 @@ static int callback_fsync(const char *path, int crap, struct fuse_file_info *fin
   return 0;
 }
 
-
-/*
 static int callback_access(const char *path, int mode)
 {
+    if (mode & W_OK) return -1; // We are ReadOnly
+
     int res;
     char *trpath=translate_path(path);
 	
@@ -442,14 +379,14 @@ static int callback_access(const char *path, int mode)
         return -errno;
     }
   	
+    errno = 0;
     res = access(trpath, mode);
     free(trpath);
-    if (res == -1) {
+    if (res == -1 && errno != 0) {
         return -errno;
     }
     return res;
 }
-*/
 
 /*
  * Set the value of an extended attribute
@@ -538,10 +475,9 @@ struct fuse_operations callback_oper = {
     .read	    = callback_read,
     .write	= callback_write,
     .statfs	    = callback_statfs,
-    .flush          = callback_flush,
     .release	= callback_release,
     .fsync	= callback_fsync,
-//    .access	= callback_access,
+    .access	= callback_access,
 
     /* Extended attributes support for userland interaction */
     .setxattr	= callback_setxattr,
@@ -553,12 +489,12 @@ struct fuse_operations callback_oper = {
 int main(int argc, char *argv[])
 {
 	
-//    rw_path = getenv("ROFS_RW_PATH");
-//    if (!rw_path)
-//    {
-//        fprintf(stderr, "ROFS_RW_PATH not defined in environment.\n");
-//        exit(1);
-//    }
+    rw_path = getenv("ROFS_RW_PATH");
+    if (!rw_path)
+    {
+        fprintf(stderr, "ROFS_RW_PATH not defined in environment.\n");
+        exit(1);
+    }
 
 
     fuse_main(argc, argv, &callback_oper);
