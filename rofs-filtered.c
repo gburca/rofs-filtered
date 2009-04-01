@@ -1,7 +1,7 @@
 /* vi:ai:tabstop=8:shiftwidth=4:softtabstop=4:expandtab
  *
  * Author: Gabriel Burca (gburca dash fuse at ebixio dot com)
- * Version: 1.2
+ * Version: 1.3
  * Latest version: http://ebixio.com/rofs-filtered/rofs-filtered.c
  *
  * This FUSE file system allows the user to mount a directory read-only and filter
@@ -34,6 +34,10 @@
  *
  * The user might need to be in the "fuse" UNIX group.
  * 
+ * Contributors:
+ * Lars Kotthoff
+ * - Added the "-c" command line option
+ * - Added the Makefile and ebuild script
  *********************************************************************************
  * Copyright (C) 2006-2007  Gabriel Burca (gburca dash fuse at ebixio dot com)
  *
@@ -80,11 +84,11 @@
 
 // Some hard-coded values:
 static const char *EXEC_NAME = "rofs-filtered";
-static const char config_file[] = "/etc/rofs-filtered.rc";
 static const int log_facility = LOG_DAEMON;
 
 // Global to store our read-write path
 char *rw_path;
+char *config_file = "/etc/rofs-filtered.rc";
 regex_t **patterns = NULL;
 int pattern_count = 0;
 
@@ -603,11 +607,30 @@ struct fuse_operations callback_oper = {
 int main(int argc, char *argv[])
 {
     openlog(EXEC_NAME, LOG_PID, log_facility);
-    log_msg(LOG_INFO, "Starting up...");
-    for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg %i = %s", i, argv[i]);
+    
+    int c = 0;
+    while ((c = getopt (argc, argv, "c:")) != -1) {
+        switch (c) {
+          case 'c':
+            config_file = optarg;
+            break;
+          case '?':
+            if (optopt == 'c')
+              fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+            else
+              fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+            return 1;
+          default:
+            abort ();
+        }
+    }
+    for (int i = optind; i < argc; i++) {
+        argv[i - (optind - 1)] = argv[i];
+    }
+    argc -= optind - 1;
 
     if (argc < 3) {
-        fprintf(stderr, "Usage: rofs-filtered <RW-Path> <Filtered-Path> [FUSE options]\n");
+        fprintf(stderr, "Usage: rofs-filtered [-c config] <RW-Path> <Filtered-Path> [FUSE options]\n");
         log_msg(LOG_ERR, "Not enough arguments. argc = %i", argc);
         exit(1);
     }
