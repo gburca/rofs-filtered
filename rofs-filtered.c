@@ -2,7 +2,9 @@
  *
  * Author: Gabriel Burca (gburca dash fuse at ebixio dot com)
  * Version: 1.3
- * Latest version: http://ebixio.com/rofs-filtered/rofs-filtered.c
+ * Latest version:
+ * 	http://ebixio.com/rofs-filtered/rofs-filtered-1.3.tar.gz
+ * 	http://ebixio.com/rofs-filtered/rofs-filtered-latest.tar.gz
  *
  * This FUSE file system allows the user to mount a directory read-only and filter
  * the files shown in the read-only directory based on regular expressions found in
@@ -37,12 +39,8 @@
  *
  * The user might need to be in the "fuse" UNIX group.
  * 
- * Contributors:
- * Lars Kotthoff <lars@larsko.org>
- * - Added the "-c" command line option
- * - Added the Makefile
  *********************************************************************************
- * Copyright (C) 2006-2007  Gabriel Burca (gburca dash fuse at ebixio dot com)
+ * Copyright (C) 2006-2009  Gabriel Burca (gburca dash fuse at ebixio dot com)
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -88,15 +86,15 @@
 #include <config.h>
 #endif
 
+#define STR1(s) # s
+#define STR(s) STR1(s)
+
 // Some hard-coded values:
 static const char *EXEC_NAME = "rofs-filtered";
 static const int log_facility = LOG_DAEMON;
 
 // Global to store our read-write path
 char *rw_path;
-
-#define STR1(s) # s
-#define STR(s) STR1(s)
 
 #ifdef SYSCONF_DIR
 char *config_file = STR(SYSCONF_DIR) "/rofs-filtered.rc";
