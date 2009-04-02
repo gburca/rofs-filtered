@@ -84,6 +84,9 @@
 #include <stdarg.h>
 #include <fuse.h>
 
+#if HAVE_CONFIG_H
+#include <config.h>
+#endif
 
 // Some hard-coded values:
 static const char *EXEC_NAME = "rofs-filtered";
@@ -91,7 +94,16 @@ static const int log_facility = LOG_DAEMON;
 
 // Global to store our read-write path
 char *rw_path;
+
+#define STR1(s) # s
+#define STR(s) STR1(s)
+
+#ifdef SYSCONF_DIR
+char *config_file = STR(SYSCONF_DIR) "/rofs-filtered.rc";
+#else
 char *config_file = "/etc/rofs-filtered.rc";
+#endif
+
 regex_t **patterns = NULL;
 int pattern_count = 0;
 

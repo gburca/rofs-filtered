@@ -1,3 +1,15 @@
 This code implements a read-only file system using FUSE. In addition, it
 filters out the visible files/directories based on a user-provided
 configuration file.
+
+If building from scratch (from the repository), execute:
+	aclocal
+	autoheader
+	automake --gnu --add-missing
+	autoconf
+
+For normal build, execute:
+	./configure --help
+	./configure
+	make
+	make install
