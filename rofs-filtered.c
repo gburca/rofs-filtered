@@ -58,6 +58,10 @@
  *********************************************************************************
  */
 
+#if HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 // We depend on version 2.5 of FUSE because it provides an "access" callback.
 // Some applications would call "access" and figure out a file is writable
 // (which was the default behavior of "access" prior to 2.5), then attempt to
@@ -67,29 +71,46 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
-#include <stdio.h>
 #include <strings.h>
-#include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
+
+#include <stdio.h>
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/xattr.h>
-#include <dirent.h>
-#include <unistd.h>
 #include <regex.h>
 #include <syslog.h>
-#include <stdarg.h>
 #include <fuse.h>
 
-#if HAVE_CONFIG_H
-#include <config.h>
+// AC_HEADER_STDC
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
+
+// AC_HEADER_DIRENT
+#if HAVE_DIRENT_H
+# include <dirent.h>
+# define NAMLEN(dirent) strlen((dirent)->d_name)
+#else
+# define dirent direct
+# define NAMLEN(dirent) (dirent)->d_namlen
+# if HAVE_SYS_NDIR_H
+#  include <sys/ndir.h>
+# endif
+# if HAVE_SYS_DIR_H
+#  include <sys/dir.h>
+# endif
+# if HAVE_NDIR_H
+#  include <ndir.h>
+# endif
 #endif
+
 
 #define STR1(s) # s
 #define STR(s) STR1(s)
 
-// Some hard-coded values:
+// Some hard-coded values for use with syslog
 static const char *EXEC_NAME = "rofs-filtered";
 static const int log_facility = LOG_DAEMON;
 
