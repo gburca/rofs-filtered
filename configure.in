@@ -7,6 +7,53 @@ AM_INIT_AUTOMAKE
 
 AC_PROG_CC
 AC_PROG_INSTALL
-AC_CONFIG_FILES([Makefile])
 AC_CONFIG_HEADER(config.h)
+
+
+# Checks for libraries.
+AC_ARG_WITH(libfuse,
+AS_HELP_STRING(--with-libfuse=DIR,
+               [use libfuse from DIR/lib (unpackfs depends on it)]),
+   [ac_cv_use_libfuse="$withval"
+   CPPFLAGS="$CPPFLAGS -I$withval/include"
+   LDFLAGS="$LDFLAGS -L$withval/lib"])
+AC_CACHE_CHECK([whether to use libfuse],
+               ac_cv_use_libfuse, ac_cv_use_libfuse=yes)
+if test "$ac_cv_use_libfuse" != no; then
+   # fuse requires to use the 64 bit off_t
+   CPPFLAGS="$CPPFLAGS -D_FILE_OFFSET_BITS=64"
+   AC_CHECK_HEADERS([fuse.h])
+   AC_CHECK_LIB(fuse, fuse_mount,
+      [LIBS="-lfuse $LIBS"
+      AC_DEFINE(HAVE_LIBFUSE, 1,
+         [Define to 1 if you have the `fuse' library (-lfuse).])],
+      [AC_MSG_ERROR([can not use the `fuse' library!
+      * fuse library `libfuse' not found or
+      * fuse header `fuse.h' not found
+      Please install the library and its header files.
+      If you are working with a package based distribution look for
+      package with a name ending with `-dev' (the developement packages).
+      If you have installed the library and the header files
+      but they were not found use `--with-libfuse=DIR'
+      when the library is installed in DIR/lib
+      and the header files are installed in DIR/include.])])
+   AC_MSG_CHECKING([whether libfuse is found when running])
+   AC_RUN_IFELSE([
+      AC_LANG_PROGRAM([[
+#ifdef HAVE_FUSE_H
+#include <fuse.h>
+#endif]],
+      [[return 0;]])],
+      AC_MSG_RESULT(yes),
+      [AC_MSG_RESULT(no)
+      AC_MSG_ERROR([running a program linked with the `fuse' library failed
+      * fuse library `libfuse' may not be found by the dynamic linker/loader
+      * try to include the path to the fuse library in the environment
+        variable LD_LIBRARY_PATH, e.g. LD_LIBRARY_PATH=DIR/lib 
+        when the library is installed in DIR/lib])],
+      AC_MSG_RESULT([is not necessary]))
+fi
+
+
+AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

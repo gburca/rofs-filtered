@@ -620,27 +620,25 @@ struct fuse_operations callback_oper = {
 int main(int argc, char *argv[])
 {
     openlog(EXEC_NAME, LOG_PID, log_facility);
-    
-    int c = 0;
-    while ((c = getopt (argc, argv, "c:")) != -1) {
-        switch (c) {
-          case 'c':
-            config_file = optarg;
-            break;
-          case '?':
-            if (optopt == 'c')
-              fprintf (stderr, "Option -%c requires an argument.\n", optopt);
-            else
-              fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-            return 1;
-          default:
-            abort ();
-        }
+
+    log_msg(LOG_INFO, "Starting up...");
+    for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg %i = %s", i, argv[i]);
+
+    if (argc > 1) {
+        if (0 == strncmp("-c", argv[1], 2)) {
+            if (argc > 2) {
+                config_file = argv[2];
+                for (int i = 3; i < argc; i++) {
+                    argv[i - 2] = argv[i];
+                }
+                argc -= 2;
+            } else {
+                fprintf (stderr, "Option -c requires an argument.\n");
+            }
+	}
     }
-    for (int i = optind; i < argc; i++) {
-        argv[i - (optind - 1)] = argv[i];
-    }
-    argc -= optind - 1;
+
+    for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg2 %i = %s", i, argv[i]);
 
     if (argc < 3) {
         fprintf(stderr, "Usage: rofs-filtered [-c config] <RW-Path> <Filtered-Path> [FUSE options]\n");

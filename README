@@ -1,15 +1,40 @@
-This code implements a read-only file system using FUSE. In addition, it
-filters out the visible files/directories based on a user-provided
-configuration file.
+See the INSTALL file for installation instructions.
 
-If building from scratch (from the repository), execute:
-	aclocal
-	autoheader
-	automake --gnu --add-missing
-	autoconf
+See below for configuration instructions.
 
-For normal build, execute:
-	./configure --help
-	./configure
-	make
-	make install
+This FUSE file system allows the user to mount a directory read-only and filter
+the files shown in the read-only directory based on regular expressions found in
+the optional /etc/rofs-filtered.rc configuration file. See the rofs-filtered.rc
+file for more details.
+
+What's the use of such a file system? Say you have a ton of *.flac music
+files, along with the transcoded *.mp3 files in the same directory tree
+structure. Maybe you want to show only one of the formats to music players
+that can play both flac and mp3 so that the songs don't show up twice. You
+might also want to show only mp3 files to players that don't understand the
+flac format.
+
+Based on:
+ROFS - The read-only filesystem for FUSE.
+
+On Ubuntu/Debian install: libfuse2, libfuse-dev, fuse-utils
+Version 2.5 or later of FUSE is required. If needed, it can be obtained from
+debuntu.org by adding the following line to /etc/apt/sources.list:
+     deb http://repository.debuntu.org/ dapper multiverse
+
+See the rofs-filtered.rc file for instructions on how to configure the
+filtering. This file is installed by default in /usr/local/etc.
+
+Mount by adding a similar line to /etc/fstab: 
+	/full/path/to/rofs-filtered#/the/read/write/device /the/read/only/mount/point fuse defaults,allow_other 0 0
+
+rofs-filtered can also be called directly directly:
+	rofs-filtered [-c config] <RW-Path> <Filtered-Path> [FUSE options]
+
+Unmount:
+	fusermount -u /the/read/only/mount/point 
+	OR
+	umount /the/read/only/mount/point
+
+On some systems, the user will need to be in the "fuse" UNIX group.
+
