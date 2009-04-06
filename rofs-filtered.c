@@ -642,8 +642,8 @@ int main(int argc, char *argv[])
 {
     openlog(EXEC_NAME, LOG_PID, log_facility);
 
-    log_msg(LOG_INFO, "Starting up...");
-    for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg %i = %s", i, argv[i]);
+    log_msg(LOG_INFO, "%s: Starting up...", PACKAGE_STRING);
+    //for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg %i = %s", i, argv[i]);
 
     if (argc > 1) {
         if (0 == strncmp("-c", argv[1], 2)) {
@@ -659,7 +659,7 @@ int main(int argc, char *argv[])
 	}
     }
 
-    for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg2 %i = %s", i, argv[i]);
+    //for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg2 %i = %s", i, argv[i]);
 
     if (argc < 3) {
         fprintf(stderr, "Usage: rofs-filtered [-c config] <RW-Path> <Filtered-Path> [FUSE options]\n");
@@ -694,6 +694,8 @@ int main(int argc, char *argv[])
 
     if (read_config(config_file)) {
         log_msg(LOG_ERR, "Error parsing config file: %s", config_file);
+    } else {
+    	log_msg(LOG_INFO, "Using config file: %s", config_file);
     }
 
     // Hand off control to FUSE

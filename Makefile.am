@@ -9,5 +9,4 @@ DEFINE += -DSYSCONF_DIR=${sysconfdir}
 DEFINE += -DHAVE_CONFIG_H
 
 AM_CFLAGS = -Wall -std=c99 ${DEFINE}
-AM_LDFLAGS = -lfuse
 

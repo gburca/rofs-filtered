@@ -1,18 +1,38 @@
-dnl Process this file with autoconf to produce a configure script
+#                                               -*- Autoconf -*-
+# Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.59)
+AC_PREREQ(2.61)
 AC_INIT([rofs-filtered], [1.3], [gburca-fuse@ebixio.com])
 AM_INIT_AUTOMAKE
+AC_CONFIG_SRCDIR([rofs-filtered.c])
+AC_CONFIG_HEADER([config.h])
 
-AC_LANG_C
+# Checks for programs.
 AC_PROG_CC
 AC_PROG_INSTALL
-AC_CONFIG_HEADER(config.h)
+AC_PROG_MAKE_SET
 
+# Checks for libraries.
+
+# Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC
-AC_CHECK_HEADERS([sys/types.h sys/stat.h sys/statvfs.h strings.h unistd.h])
-AC_CHECK_HEADERS([assert.h errno.h fcntl.h sys/xattr.h regex.h syslog.h])
+AC_CHECK_HEADERS([fcntl.h stdlib.h string.h strings.h sys/statvfs.h sys/time.h syslog.h unistd.h])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_TYPE_UID_T
+AC_TYPE_MODE_T
+AC_TYPE_OFF_T
+AC_TYPE_SIZE_T
+
+# Checks for library functions.
+AC_FUNC_CLOSEDIR_VOID
+AC_FUNC_LSTAT
+AC_FUNC_LSTAT_FOLLOWS_SLASHED_SYMLINK
+AC_FUNC_MALLOC
+AC_FUNC_REALLOC
+AC_CHECK_FUNCS([memset regcomp])
 
 # Checks for libraries.
 AC_ARG_WITH(libfuse,
@@ -59,7 +79,6 @@ if test "$ac_cv_use_libfuse" != no; then
         when the library is installed in DIR/lib])],
       AC_MSG_RESULT([is not necessary]))
 fi
-
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
