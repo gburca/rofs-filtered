@@ -6,3 +6,4 @@ install-sh
 missing
 depcomp
 configure
+autom4te.cache

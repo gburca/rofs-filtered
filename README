@@ -2,10 +2,10 @@ See the INSTALL file for installation instructions.
 
 See below for configuration instructions.
 
-This FUSE file system allows the user to mount a directory read-only and filter
-the files shown in the read-only directory based on regular expressions found in
-the optional /etc/rofs-filtered.rc configuration file. See the rofs-filtered.rc
-file for more details.
+This FUSE file system allows the user to mount a directory tree as read-only
+and filter the files shown in the read-only directory tree based on regular
+expressions found in the rofs-filtered.rc configuration file. See the
+rofs-filtered.rc file for more details.
 
 What's the use of such a file system? Say you have a ton of *.flac music
 files, along with the transcoded *.mp3 files in the same directory tree
@@ -25,10 +25,10 @@ debuntu.org by adding the following line to /etc/apt/sources.list:
 See the rofs-filtered.rc file for instructions on how to configure the
 filtering. This file is installed by default in /usr/local/etc.
 
-Mount by adding a similar line to /etc/fstab: 
+Mount a directory tree by adding a similar line to /etc/fstab: 
 	/full/path/to/rofs-filtered#/the/read/write/device /the/read/only/mount/point fuse defaults,allow_other 0 0
 
-rofs-filtered can also be called directly directly:
+rofs-filtered can also be called directly:
 	rofs-filtered [-c config] <RW-Path> <Filtered-Path> [FUSE options]
 
 Unmount:
