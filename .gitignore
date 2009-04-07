@@ -7,3 +7,11 @@ missing
 depcomp
 configure
 autom4te.cache
+Makefile
+.deps
+config.h
+config.log
+config.status
+rofs-filtered-*.tar.gz
+rofs-filtered-*.tar.bz2
+stamp-h1
