@@ -15,3 +15,7 @@ config.status
 rofs-filtered-*.tar.gz
 rofs-filtered-*.tar.bz2
 stamp-h1
+INSTALL
+config.h.in~
+rofs-filtered
+rofs-filtered.o
