@@ -16,28 +16,46 @@ ROFS - The read-only filesystem for FUSE.
 Get the latest version from:
 	http://ebixio.com/rofs-filtered/
 
-See the INSTALL file for installation instructions.
 
-See below for configuration instructions.
+### Dependencies:
+* libfuse2
+* libfuse-dev
+* fuse-utils
+	Version 2.5 or later of FUSE is required.
 
-On Ubuntu/Debian install: libfuse2, libfuse-dev, fuse-utils
-Version 2.5 or later of FUSE is required. If needed, it can be obtained from
-debuntu.org by adding the following line to /etc/apt/sources.list:
-     deb http://repository.debuntu.org/ dapper multiverse
 
-See the rofs-filtered.rc file for instructions on how to configure the
+### Building:
+```
+./autogen.sh
+./configure
+make
+sudo make install
+```
+
+See also the INSTALL file for more build and install instructions.
+
+
+### Using:
+
+* The rofs-filtered.rc file contains instructions on how to configure the
 filtering. This file is installed by default in /usr/local/etc.
 
-Mount a directory tree by adding a similar line to /etc/fstab: 
-	/full/path/to/rofs-filtered#/the/read/write/device /the/read/only/mount/point fuse defaults,allow_other 0 0
+* Mount a directory tree by adding a similar line to /etc/fstab: 
+```
+/full/path/to/rofs-filtered#/the/read/write/device /the/read/only/mount/point fuse defaults,allow_other 0 0
+```
 
-rofs-filtered can also be called directly:
-	rofs-filtered [-c config] <RW-Path> <Filtered-Path> [FUSE options]
+* The rofs-filtered executable can also be called directly:
+```
+rofs-filtered [-c config] <RW-Path> <Filtered-Path> [FUSE options]
+```
 
-Unmount:
-	fusermount -u /the/read/only/mount/point 
-	OR
-	umount /the/read/only/mount/point
+* To unmount use one of these two commands:
+```
+fusermount -u /the/read/only/mount/point 
+# OR
+umount /the/read/only/mount/point
+```
 
-On some systems, the user will need to be in the "fuse" UNIX group.
+* On some systems, the user will need to be in the "fuse" UNIX group.
 
