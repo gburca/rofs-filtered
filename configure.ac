@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([rofs-filtered], [1.3], [gburca-fuse@ebixio.com])
+AC_INIT([rofs-filtered], [1.4], [gburca-fuse@ebixio.com])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([rofs-filtered.c])
 AC_CONFIG_HEADER([config.h])

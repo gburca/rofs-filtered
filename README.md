@@ -37,6 +37,8 @@ See also the INSTALL file for more build and install instructions.
 
 ### Using:
 
+* rofs-filtered --help
+
 * The rofs-filtered.rc file contains instructions on how to configure the
 filtering. This file is installed by default in /usr/local/etc.
 

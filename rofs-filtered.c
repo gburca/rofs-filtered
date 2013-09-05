@@ -77,6 +77,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <errno.h>
+#include <stddef.h>
 #include <fcntl.h>
 #include <sys/xattr.h>
 #include <regex.h>
@@ -114,13 +115,24 @@
 static const char *EXEC_NAME = "rofs-filtered";
 static const int log_facility = LOG_DAEMON;
 
-// Global to store our read-write path
-char *rw_path;
+struct rofs_config {
+    char *rw_path;
+    char *config;
+};
+
+// Global to store our configuration (the option parsing results)
+struct rofs_config conf;
+
+enum {
+    KEY_HELP,
+    KEY_VERSION
+};
+
 
 #ifdef SYSCONF_DIR
-char *config_file = STR(SYSCONF_DIR) "/rofs-filtered.rc";
+char *default_config_file = STR(SYSCONF_DIR) "/rofs-filtered.rc";
 #else
-char *config_file = "/etc/rofs-filtered.rc";
+char *default_config_file = "/etc/rofs-filtered.rc";
 #endif
 
 regex_t **patterns = NULL;
@@ -131,15 +143,15 @@ int pattern_count = 0;
 static char* translate_path(const char* path)
 {
 
-    char *rPath= malloc(sizeof(char)*(strlen(path)+strlen(rw_path)+1));
+    char *rPath= malloc(sizeof(char) * (strlen(path) + strlen(conf.rw_path) + 1));
 
     if (!rPath) return NULL;
 
-    strcpy(rPath,rw_path);
+    strcpy(rPath, conf.rw_path);
     if (rPath[strlen(rPath)-1]=='/') {
         rPath[strlen(rPath)-1]='\0';
     }
-    strcat(rPath,path);
+    strcat(rPath, path);
 
     return rPath;
 }
@@ -151,6 +163,11 @@ static void log_msg(const int level, const char *format, ... /*args*/) {
 
     vsyslog(log_facility | level, format, ap);
     va_end(ap);
+
+    va_start(ap, format);
+    vfprintf(stderr, format, ap);
+    va_end(ap);
+    fprintf(stderr, "\n");
 }
 
 /** Report user-friendly regex errors */
@@ -637,68 +654,69 @@ struct fuse_operations callback_oper = {
     .removexattr= callback_removexattr
 };
 
+#define ROFS_OPT(t, p, v) { t, offsetof(struct rofs_config, p), v }
 
-int main(int argc, char *argv[])
-{
+static struct fuse_opt rofs_opts[] = {
+    ROFS_OPT("source=%s",       rw_path, 0),
+    ROFS_OPT("config=%s",       config, 0),
+    ROFS_OPT("-c %s",           config, 0),
+
+    FUSE_OPT_KEY("-V",          KEY_VERSION),
+    FUSE_OPT_KEY("--version",   KEY_VERSION),
+    FUSE_OPT_KEY("-h",          KEY_HELP),
+    FUSE_OPT_KEY("--help",      KEY_HELP),
+    FUSE_OPT_END
+};
+
+static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args *outargs) {
+    switch (key) {
+    case KEY_HELP:
+        fprintf(stderr, "Usage: %s mountpoint -o source=/some/dir [options]\n"
+                "\n"
+                "General options:\n"
+                "   -o opt,[opt...]         mount options\n"
+                "   -h --help               print help\n"
+                "   -V --version            print version\n"
+                "\n"
+                "rofs-filtered options:\n"
+                "   -o source=DIR           directory to mount as read-only\n"
+                "   -o config=CONFIG_FILE   config file path (default: %s)\n"
+                "\n"
+                , outargs->argv[0], default_config_file);
+        fuse_opt_add_arg(outargs, "-ho");
+        fuse_main(outargs->argc, outargs->argv, &callback_oper);
+        exit(1);
+
+    case KEY_VERSION:
+        fprintf(stderr, "%s version: %s\n", EXEC_NAME, PACKAGE_VERSION);
+        fuse_opt_add_arg(outargs, "--version");
+        fuse_main(outargs->argc, outargs->argv, &callback_oper);
+        exit(0);
+    }
+    return 1;
+}
+
+int main(int argc, char *argv[]) {
     openlog(EXEC_NAME, LOG_PID, log_facility);
-
-    log_msg(LOG_INFO, "%s: Starting up...", PACKAGE_STRING);
     //for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg %i = %s", i, argv[i]);
 
-    if (argc > 1) {
-        if (0 == strncmp("-c", argv[1], 2)) {
-            if (argc > 2) {
-                config_file = argv[2];
-                for (int i = 3; i < argc; i++) {
-                    argv[i - 2] = argv[i];
-                }
-                argc -= 2;
-            } else {
-                fprintf (stderr, "Option -c requires an argument.\n");
-            }
-        }
-    }
+    struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
+    memset(&conf, 0, sizeof(conf));
+    fuse_opt_parse(&args, &conf, rofs_opts, rofs_opt_proc);
 
-    //for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg2 %i = %s", i, argv[i]);
+    if (conf.config == NULL) conf.config = default_config_file;
+    log_msg(LOG_INFO, "%s: Starting up. Using source: %s and config: %s", PACKAGE_STRING, conf.rw_path, conf.config);
 
-    if (argc < 3) {
-        fprintf(stderr, "Usage: rofs-filtered [-c config] <RW-Path> <Filtered-Path> [FUSE options]\n");
-        log_msg(LOG_ERR, "Not enough arguments. argc = %i", argc);
-        exit(1);
-    }
-
-    if (access(argv[1], F_OK)) {
-        log_msg(LOG_ERR, "The following directory does not exist: %s", argv[1]);
+    if (conf.rw_path == NULL || access(conf.rw_path, F_OK)) {
+        log_msg(LOG_ERR, "%s: The following source directory does not exist: %s", PACKAGE_STRING, conf.rw_path);
         exit(2);
     }
-    if (access(argv[2], F_OK)) {
-        log_msg(LOG_ERR, "The following directory does not exist: %s", argv[2]);
+
+    if (read_config(conf.config)) {
+        log_msg(LOG_ERR, "%s: Error parsing config file: %s", PACKAGE_STRING, conf.config);
         exit(3);
     }
 
-    // We save away the first argument (the RW-Path)
-    int len = strlen(argv[1]) + 1;
-    rw_path = malloc(len);
-    if (rw_path) {
-        strncpy(rw_path, argv[1], len);
-    } else {
-        exit(4);
-    }
-
-    // Shift all arguments up by one (overwriting the first argument) because
-    // fuse_main doesn't accept the mount source, only the mountpoint.
-    for (int i = 2; i < argc; i++) {
-        argv[i - 1] = argv[i];
-    }
-    argc--;
-
-    if (read_config(config_file)) {
-        log_msg(LOG_ERR, "Error parsing config file: %s", config_file);
-    } else {
-    	log_msg(LOG_INFO, "Using config file: %s", config_file);
-    }
-
-    // Hand off control to FUSE
-    fuse_main(argc, argv, &callback_oper);
-    return 0;
+    return fuse_main(args.argc, args.argv, &callback_oper);
 }
+
