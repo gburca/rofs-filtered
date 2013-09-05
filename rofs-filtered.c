@@ -17,10 +17,10 @@
  * that can play both flac and mp3 so that the songs don't show up twice. You
  * might also want to show only mp3 files to players that don't understand the
  * flac format.
- * 
+ *
  * Based on:
  * ROFS - The read-only filesystem for FUSE.
- * 
+ *
  * On Ubuntu/Debian install: libfuse2, libfuse-dev, fuse-utils
  * Version 2.5 or later of FUSE is required. If needed, it can be obtained from
  * debuntu.org by adding the following line to /etc/apt/sources.list:
@@ -38,7 +38,7 @@
  * Unmount: umount /the/read/only/mount/point
  *
  * The user might need to be in the "fuse" UNIX group.
- * 
+ *
  *********************************************************************************
  * Copyright (C) 2006-2009  Gabriel Burca (gburca dash fuse at ebixio dot com)
  *
@@ -127,12 +127,12 @@ regex_t **patterns = NULL;
 int pattern_count = 0;
 
 
-/** Translate an rofs path into it's underlying filesystem path */
+/** Translate an rofs path into its underlying filesystem path */
 static char* translate_path(const char* path)
 {
 
     char *rPath= malloc(sizeof(char)*(strlen(path)+strlen(rw_path)+1));
- 
+
     if (!rPath) return NULL;
 
     strcpy(rPath,rw_path);
@@ -164,7 +164,7 @@ static void log_regex_error(int error, regex_t *regex, const char* pattern) {
     if (err_msg) {
         regerror(error, regex, err_msg, msg_len);
         log_msg(LOG_ERR, "RegEx error: \"%s\" while parsing pattern: \"%s\"",
-                err_msg, pattern); 
+                err_msg, pattern);
         //printf("Error: %s %s\n", err_msg, pattern);
         free(err_msg);
     }
@@ -214,7 +214,7 @@ static int read_config(const char *conf_file) {
         if ( regcomp_res ) {
             log_regex_error(regcomp_res, regex, line);
         } else {
-            // Add regex to the stash 
+            // Add regex to the stash
             pcount++;
             patterns = realloc(patterns, sizeof(regex_t *) * pcount);
             patterns[pcount - 1] = regex;
@@ -243,11 +243,11 @@ static int should_hide(const char *name) {
 
 
 /******************************
- *   
+ *
  * Callbacks for FUSE
- * 
+ *
  ******************************/
- 
+
 static int callback_getattr(const char *path, struct stat *st_data) {
     if (should_hide(path)) return -ENOENT;
 
@@ -273,7 +273,7 @@ static int callback_readlink(const char *path, char *buf, size_t size) {
 
     int res;
     char *trpath=translate_path(path);
-	
+
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
@@ -299,7 +299,7 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     (void) fi;
 
     char *trpath=translate_path(path);
-	
+
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
@@ -355,7 +355,7 @@ static int callback_symlink(const char *from, const char *to)
 {
     (void)from;
     (void)to;
-    return -EPERM;	
+    return -EPERM;
 }
 
 static int callback_rename(const char *from, const char *to) {
@@ -403,11 +403,11 @@ static int callback_utime(const char *path, struct utimbuf *buf)
 {
     (void)path;
     (void)buf;
-    return -EPERM;	
+    return -EPERM;
 }
 
 /** This function should just check if the operation is permitted for the given
- * flags. FUSE will provide it's own file descriptor to the calling
+ * flags. FUSE will provide its own file descriptor to the calling
  * application.
  */
 static int callback_open(const char *path, struct fuse_file_info *finfo) {
@@ -423,16 +423,16 @@ static int callback_open(const char *path, struct fuse_file_info *finfo) {
     if ((flags & O_WRONLY) || (flags & O_RDWR) || (flags & O_CREAT) || (flags & O_EXCL) || (flags & O_TRUNC)) {
         return -EPERM;
     }
-  	
+
     char *trpath=translate_path(path);
-	
+
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
     }
-  
+
     res = open(trpath, flags);
- 
+
     free(trpath);
     if(res == -1) {
         return -errno;
@@ -449,7 +449,7 @@ static int callback_read(const char *path, char *buf, size_t size, off_t offset,
     (void)finfo;
 
     char *trpath=translate_path(path);
-	
+
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
@@ -462,7 +462,7 @@ static int callback_read(const char *path, char *buf, size_t size, off_t offset,
 
     errno = 0;
     res = pread(fd, buf, size, offset);
-    
+
     if (res == -1) {
         res = -errno;
     }
@@ -486,7 +486,7 @@ static int callback_statfs(const char *path, struct statvfs *st_buf) {
 
     int res;
     char *trpath=translate_path(path);
-	
+
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
@@ -520,12 +520,12 @@ static int callback_access(const char *path, int mode) {
 
     int res;
     char *trpath=translate_path(path);
-	
+
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
     }
-  	
+
     errno = 0;
     res = access(trpath, mode);
     free(trpath);
@@ -556,9 +556,9 @@ static int callback_getxattr(const char *path, const char *name, char *value, si
     if (should_hide(path)) return -ENOENT;
 
     int res;
-    
+
     char *trpath=translate_path(path);
-	
+
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
@@ -578,9 +578,9 @@ static int callback_listxattr(const char *path, char *list, size_t size) {
     if (should_hide(path)) return -ENOENT;
 
     int res;
-	
+
     char *trpath=translate_path(path);
-	
+
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
@@ -608,32 +608,32 @@ static int callback_removexattr(const char *path, const char *name) {
 }
 
 struct fuse_operations callback_oper = {
-    .getattr	    = callback_getattr,
-    .readlink	    = callback_readlink,
-    .readdir	    = callback_readdir,
-    .mknod	= callback_mknod,
-    .mkdir	= callback_mkdir,
-    .symlink	= callback_symlink,
-    .unlink	= callback_unlink,
-    .rmdir	= callback_rmdir,
-    .rename	= callback_rename,
-    .link	= callback_link,
-    .chmod	= callback_chmod,
-    .chown	= callback_chown,
-    .truncate	= callback_truncate,
-    .utime	= callback_utime,
-    .open	    = callback_open,
-    .read	    = callback_read,
-    .write	= callback_write,
-    .statfs	    = callback_statfs,
-    .release	= callback_release,
-    .fsync	= callback_fsync,
-    .access	= callback_access,
+    .getattr    = callback_getattr,
+    .readlink   = callback_readlink,
+    .readdir    = callback_readdir,
+    .mknod      = callback_mknod,
+    .mkdir      = callback_mkdir,
+    .symlink    = callback_symlink,
+    .unlink     = callback_unlink,
+    .rmdir      = callback_rmdir,
+    .rename     = callback_rename,
+    .link       = callback_link,
+    .chmod      = callback_chmod,
+    .chown      = callback_chown,
+    .truncate   = callback_truncate,
+    .utime      = callback_utime,
+    .open       = callback_open,
+    .read       = callback_read,
+    .write      = callback_write,
+    .statfs     = callback_statfs,
+    .release    = callback_release,
+    .fsync      = callback_fsync,
+    .access     = callback_access,
 
     /* Extended attributes support for userland interaction */
-    .setxattr	= callback_setxattr,
-    .getxattr	    = callback_getxattr,
-    .listxattr	    = callback_listxattr,
+    .setxattr   = callback_setxattr,
+    .getxattr   = callback_getxattr,
+    .listxattr  = callback_listxattr,
     .removexattr= callback_removexattr
 };
 
@@ -656,7 +656,7 @@ int main(int argc, char *argv[])
             } else {
                 fprintf (stderr, "Option -c requires an argument.\n");
             }
-	}
+        }
     }
 
     //for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg2 %i = %s", i, argv[i]);
