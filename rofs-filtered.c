@@ -1,7 +1,7 @@
 /* vi:ai:tabstop=8:shiftwidth=4:softtabstop=4:expandtab
  *
  * Author: Gabriel Burca (gburca dash fuse at ebixio dot com)
- * Version: 1.3
+ * Version: 1.4
  * Latest version:
  * 	http://ebixio.com/rofs-filtered/rofs-filtered-1.3.tar.gz
  * 	http://ebixio.com/rofs-filtered/rofs-filtered-latest.tar.gz
@@ -688,7 +688,8 @@ static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args 
         exit(1);
 
     case KEY_VERSION:
-        fprintf(stderr, "%s version: %s\n", EXEC_NAME, PACKAGE_VERSION);
+        fprintf(stderr, "%s version: %s ($Id$)\n", EXEC_NAME, PACKAGE_VERSION);
+        // Let fuse also print its version
         fuse_opt_add_arg(outargs, "--version");
         fuse_main(outargs->argc, outargs->argv, &callback_oper);
         exit(0);
