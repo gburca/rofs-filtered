@@ -3,8 +3,7 @@
  * Author: Gabriel Burca (gburca dash fuse at ebixio dot com)
  * Version: 1.4
  * Latest version:
- * 	http://ebixio.com/rofs-filtered/rofs-filtered-1.3.tar.gz
- * 	http://ebixio.com/rofs-filtered/rofs-filtered-latest.tar.gz
+ * 	https://github.com/gburca/rofs-filtered
  *
  * This FUSE file system allows the user to mount a directory read-only and filter
  * the files shown in the read-only directory based on regular expressions found in
@@ -40,7 +39,7 @@
  * The user might need to be in the "fuse" UNIX group.
  *
  *********************************************************************************
- * Copyright (C) 2006-2009  Gabriel Burca (gburca dash fuse at ebixio dot com)
+ * Copyright (C) 2006-2014  Gabriel Burca (gburca dash fuse at ebixio dot com)
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -671,7 +670,7 @@ static struct fuse_opt rofs_opts[] = {
 static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args *outargs) {
     switch (key) {
     case KEY_HELP:
-        fprintf(stderr, "Usage: %s mountpoint -o source=/some/dir [options]\n"
+        fprintf(stderr, "Usage: %s /mount/point -o source=/some/dir [-o config=/some/config.rc] [options]\n"
                 "\n"
                 "General options:\n"
                 "   -o opt,[opt...]         mount options\n"
@@ -683,12 +682,13 @@ static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args 
                 "   -o config=CONFIG_FILE   config file path (default: %s)\n"
                 "\n"
                 , outargs->argv[0], default_config_file);
+        // Let fuse print out its help text as well...
         fuse_opt_add_arg(outargs, "-ho");
         fuse_main(outargs->argc, outargs->argv, &callback_oper);
         exit(1);
 
     case KEY_VERSION:
-        fprintf(stderr, "%s version: %s ($Id$)\n", EXEC_NAME, PACKAGE_VERSION);
+        fprintf(stderr, "%s version: %s\n", EXEC_NAME, PACKAGE_VERSION);
         // Let fuse also print its version
         fuse_opt_add_arg(outargs, "--version");
         fuse_main(outargs->argc, outargs->argv, &callback_oper);

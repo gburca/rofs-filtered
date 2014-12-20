@@ -1,2 +1,2 @@
 *.sh	eol=lf
-*	ident
+*	ident export-subst
