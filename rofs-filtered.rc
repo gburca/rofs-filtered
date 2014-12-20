@@ -2,17 +2,52 @@
 #
 # Configuration file for rofs-filtered (filtered ReadOnlyFileSystem)
 #
-# This file is only read at start-up, so after modifying it, umount and
-# re-mount the directory to make it take effect.
-#
-# Each line below should contain a regular expression pattern that matches the
-# files to be filtered out (or hidden).
-#
 # Comments must start with '#' in the first column.
 # If the pattern is supposed to start with '#', use '\#' instead.
 #
+# This file is only read at start-up, so after modifying it, umount and
+# re-mount the directory to make it take effect.
+#
+# Each line below should contain a RegEx (regular expression) pattern (no
+# longer than 1023 characters) that matches the files to be filtered out (or
+# hidden). The pattern is applied to the full path, starting at the mount
+# point. See the regex(7) man page for the allowed syntax.
+#
+# For example, assume we have the following source directory structure mounted
+# at /mnt/point :
+#
+# sourceDir/
+# |-- file1.flac
+# |-- file1.mp3
+# |-- file2.mp3
+# |-- subDir1/
+# |   |-- file3.flac
+# |   |-- file3.mp3
+# |   |-- fileA.mp3
+# |   `-- subSubDir1/
+# `-- subDir2/
+#     |-- fileA.mp3
+#     |-- file4.flac
+#     `-- file4.mp3
+#
+# The RegEx will be tested against:
+# /
+# /file1.flac
+# /file1.mp3
+# /file2.mp3
+# /subDir1
+# /subDir1/file3.flac
+# etc...
+#
+# Notice that it's not tested against the absolute location of the file (which
+# would be /mnt/point/subDir1/file3.flac for example).
 
+# Hide all *.flac files (all files or directories that end in ".flac"):
 .*\.flac$
 
-# folder\.jpg
+# Hide subDir2 (and all its contents), no matter where it appears in the tree:
+\/subDir2$
+
+# Hide the subDir2 but only if it occurs at the root of the tree:
+^\/subDir2$
 

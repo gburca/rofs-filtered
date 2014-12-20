@@ -71,3 +71,17 @@ umount /the/read/only/mount/point
 
 * On some systems, the user will need to be in the "fuse" UNIX group.
 
+* The configuration file normally specifies what files should be filtered out.
+  When the "invert" option is used, only files that match the RegEx will be
+  shown. This can be tricky to configure. See the rofs-filtered-invert.rc file
+  for some tips. The "invert" option can be specified in fstab or on the
+  command line respectively as follows:
+
+```
+/usr/local/bin/rofs-filtered	/the/ro/mount/point1	fuse	defaults,allow_other,source=/the/rw/device1,config=/etc/filter1.rc,invert
+```
+
+```
+rofs-filtered <Filtered-Path> -o source=<RW-Path> -o invert [-o config=/etc/filter1.rc] [FUSE options]
+```
+

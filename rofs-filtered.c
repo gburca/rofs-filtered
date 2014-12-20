@@ -117,6 +117,7 @@ static const int log_facility = LOG_DAEMON;
 struct rofs_config {
     char *rw_path;
     char *config;
+    int invert;
 };
 
 // Global to store our configuration (the option parsing results)
@@ -137,24 +138,6 @@ char *default_config_file = "/etc/rofs-filtered.rc";
 regex_t **patterns = NULL;
 int pattern_count = 0;
 
-
-/** Translate an rofs path into its underlying filesystem path */
-static char* translate_path(const char* path)
-{
-
-    char *rPath= malloc(sizeof(char) * (strlen(path) + strlen(conf.rw_path) + 1));
-
-    if (!rPath) return NULL;
-
-    strcpy(rPath, conf.rw_path);
-    if (rPath[strlen(rPath)-1]=='/') {
-        rPath[strlen(rPath)-1]='\0';
-    }
-    strcat(rPath, path);
-
-    return rPath;
-}
-
 /** Log a message to syslog */
 static void log_msg(const int level, const char *format, ... /*args*/) {
     va_list ap;
@@ -167,6 +150,45 @@ static void log_msg(const int level, const char *format, ... /*args*/) {
     vfprintf(stderr, format, ap);
     va_end(ap);
     fprintf(stderr, "\n");
+}
+
+static char* concat_path(const char* p1, const char* p2) {
+    assert(p1 && p2);
+
+    size_t p1len = strlen(p1);
+    size_t p2len = strlen(p2);
+
+    assert(p1len && p2len);
+
+    // Need room for path separator and null terminator
+    char *path = malloc(p1len + p2len + 2);
+    if (!path) return NULL;
+
+    strcpy(path, p1);
+
+    if ((path[p1len - 1] != '/') && (p2[0] != '/')) {
+        // Add a "/" if neither p1 nor p2 has it.
+        strcat(path, "/");
+    } else if (path[p1len - 1] == '/') {
+        // If p1 ends in '/', we don't need it from p2
+        while (p2[0] == '/') p2++;
+    }
+
+    strcat(path, p2);
+
+    return path;
+}
+
+/** Translate an rofs path into its underlying filesystem path.
+ *
+ * @param path The full path, relative to the rofs mount point. For example, if
+ * the rofs is mounted at /a/path and there's a /a/path/file, the 'ls /a/path'
+ * command will result in calls to this function with the path argument set to
+ * "/" and "/file". */
+static char* translate_path(const char* path)
+{
+
+    return concat_path(conf.rw_path, path);
 }
 
 /** Report user-friendly regex errors */
@@ -202,6 +224,7 @@ static int read_config(const char *conf_file) {
         return -1;
     }
 
+    // Config file lines we want to ignore
     ignore_pattern = (regex_t *)malloc(sizeof(regex_t));
     if (! ignore_pattern) {
         log_msg(LOG_ERR, "Out of memory!");
@@ -215,6 +238,7 @@ static int read_config(const char *conf_file) {
     }
 
     while ( fgets(line, MAX_LINE, fh) ) {
+        // Ignore comments or empty lines in the config file
         if (! regexec(ignore_pattern, line, 0, NULL, 0)) continue;
 
         regex = (regex_t *)malloc(sizeof(regex_t));
@@ -246,15 +270,17 @@ static int read_config(const char *conf_file) {
 
 /** If the file name matches one of the RegEx patterns, hide it. */
 static int should_hide(const char *name) {
+    //log_msg(LOG_DEBUG, "should_hide: %s", name);
     int res;
     for (int i = 0; i < pattern_count; i++) {
         res = regexec(patterns[i], name, 0, NULL, 0);
         if (res == 0) {
             // We have a match.
-            return 1;
+            // log_msg(LOG_DEBUG, "match: %d %s", i+1, name);
+            return conf.invert ? 0 : 1;
         }
     }
-    return 0;
+    return conf.invert ? 1 : 0;
 }
 
 
@@ -323,12 +349,22 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     dp = opendir(trpath);
     free(trpath);
-    if(dp == NULL) {
+    if (dp == NULL) {
         return -errno;
     }
 
     while((de = readdir(dp)) != NULL) {
-        if (should_hide(de->d_name)) {
+        char *fullPath = concat_path(path, de->d_name);
+
+        if (!fullPath) {
+            errno = ENOMEM;
+            return -errno;
+        }
+
+        int hide = should_hide(fullPath);
+        free(fullPath);
+
+        if (hide) {
             // hide some files and directories
         } else {
             struct stat st;
@@ -338,6 +374,7 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
             if (filler(buf, de->d_name, &st, 0))
                 break;
         }
+
     }
 
     closedir(dp);
@@ -659,6 +696,7 @@ static struct fuse_opt rofs_opts[] = {
     ROFS_OPT("source=%s",       rw_path, 0),
     ROFS_OPT("config=%s",       config, 0),
     ROFS_OPT("-c %s",           config, 0),
+    ROFS_OPT("invert",          invert, 1),
 
     FUSE_OPT_KEY("-V",          KEY_VERSION),
     FUSE_OPT_KEY("--version",   KEY_VERSION),
@@ -678,8 +716,9 @@ static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args 
                 "   -V --version            print version\n"
                 "\n"
                 "rofs-filtered options:\n"
-                "   -o source=DIR           directory to mount as read-only\n"
+                "   -o source=DIR           directory to mount as read-only and filter\n"
                 "   -o config=CONFIG_FILE   config file path (default: %s)\n"
+                "   -o invert               the config file specifies files to allow\n"
                 "\n"
                 , outargs->argv[0], default_config_file);
         // Let fuse print out its help text as well...
