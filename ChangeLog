@@ -1,3 +1,8 @@
+2014-12-20 Gabriel Burca <gburca-fuse@ebixio.com>
+	* Added the option to invert the match (specify files to include instead
+	of exclude).
+	* Moved to https://github.com/gburca/rofs-filtered
+
 2009-04-02 Gabriel Burca <gburca-fuse@ebixio.com>
 	* Added autoconf/automake scripts
 
