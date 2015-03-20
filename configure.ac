@@ -7,6 +7,9 @@ AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([rofs-filtered.c])
 AC_CONFIG_HEADER([config.h])
 
+# Do not require README file (we use README.md)
+AM_INIT_AUTOMAKE([foreign])
+
 # Checks for programs.
 AC_PROG_CC
 AC_PROG_INSTALL
