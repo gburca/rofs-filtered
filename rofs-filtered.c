@@ -61,6 +61,12 @@
 #include <config.h>
 #endif
 
+#if __APPLE__ 
+#define llistxattr(path, list, size) (listxattr(path, list, size, XATTR_NOFOLLOW))
+#define lgetxattr(path, name, value, size) (getxattr(path, name, value, size, 0, XATTR_NOFOLLOW))
+#define lsetxattr(path, name, value, size, flags) (setxattr(path, name, value, size, 0, flags | XATTR_NOFOLLOW))
+#endif
+
 // We depend on version 2.5 of FUSE because it provides an "access" callback.
 // Some applications would call "access" and figure out a file is writable
 // (which was the default behavior of "access" prior to 2.5), then attempt to
