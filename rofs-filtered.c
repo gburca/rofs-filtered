@@ -1,7 +1,7 @@
 /* vi:ai:tabstop=8:shiftwidth=4:softtabstop=4:expandtab
  *
  * Author: Gabriel Burca (gburca dash fuse at ebixio dot com)
- * Version: 1.4
+ * Version: 1.5
  * Latest version:
  * 	https://github.com/gburca/rofs-filtered
  *
