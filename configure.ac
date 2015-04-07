@@ -42,8 +42,14 @@ AC_ARG_WITH(libfuse,
 AS_HELP_STRING(--with-libfuse=DIR,
                [use libfuse from DIR/lib (rofs-filtered depends on it)]),
    [ac_cv_use_libfuse="$withval"
-   CPPFLAGS="$CPPFLAGS -I$withval/include"
    LDFLAGS="$LDFLAGS -L$withval/lib"])
+
+# And Fuse headers.
+AC_ARG_WITH(fuseinclude,
+AS_HELP_STRING(--with-fuseinclude=DIR,
+               [use fuse.h from DIR/fuse]),
+   [ac_cv_use_libfuse="$withval"
+   CPPFLAGS="$CPPFLAGS -I$withval/fuse"])
 
 AC_CACHE_CHECK([whether to use libfuse],
                ac_cv_use_libfuse, ac_cv_use_libfuse=yes)
