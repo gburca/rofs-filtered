@@ -1,7 +1,7 @@
 /* vi:ai:tabstop=8:shiftwidth=4:softtabstop=4:expandtab
  *
  * Author: Gabriel Burca (gburca dash fuse at ebixio dot com)
- * Version: 1.4
+ * Version: 1.5
  * Latest version:
  * 	https://github.com/gburca/rofs-filtered
  *
@@ -59,6 +59,12 @@
 
 #if HAVE_CONFIG_H
 #include <config.h>
+#endif
+
+#if __APPLE__ 
+#define llistxattr(path, list, size) (listxattr(path, list, size, XATTR_NOFOLLOW))
+#define lgetxattr(path, name, value, size) (getxattr(path, name, value, size, 0, XATTR_NOFOLLOW))
+#define lsetxattr(path, name, value, size, flags) (setxattr(path, name, value, size, 0, flags | XATTR_NOFOLLOW))
 #endif
 
 // We depend on version 2.5 of FUSE because it provides an "access" callback.
