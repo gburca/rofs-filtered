@@ -38,6 +38,10 @@ sudo make install
 
 See also the INSTALL file for more build and install instructions.
 
+On Mac OS X 10.10 Yosemite or later you can use <a href="http://brew.sh/">Homebrew</a> to install:
+
+    brew install rofs-filtered 
+    
 
 ### Using:
 
