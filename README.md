@@ -36,8 +36,6 @@ make
 sudo make install
 ```
 
-See also the INSTALL file for more build and install instructions.
-
 
 ### Using:
 
