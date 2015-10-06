@@ -45,14 +45,16 @@ On Mac OS X 10.10 Yosemite or later you can use [Homebrew](http://brew.sh/) to i
 
 ### Using:
 
-* rofs-filtered --help
+```
+rofs-filtered --help
+```
 
-* The rofs-filtered.rc file contains instructions on how to configure the
+* The [rofs-filtered.rc](rofs-filtered.rc) file contains instructions on how to configure the
 filtering. This file is installed by default in /usr/local/etc.
 
 * Mount a directory tree by adding a similar line to /etc/fstab: 
 ```
-/full/path/to/rofs-filtered#/the/read/write/device /the/read/only/mount/point fuse defaults,allow_other 0 0
+/usr/local/bin/rofs-filtered	/the/read/write/device /the/read/only/mount/point fuse defaults,allow_other 0 0
 ```
 
 * If you need to have different mount points, each with its own filter rules, you can use an alternative syntax in /etc/fstab:
@@ -77,7 +79,7 @@ umount /the/read/only/mount/point
 
 * The configuration file normally specifies what files should be filtered out.
   When the "invert" option is used, only files that match the RegEx will be
-  shown. This can be tricky to configure. See the rofs-filtered-invert.rc file
+  shown. This can be tricky to configure. See the [rofs-filtered-invert.rc](rofs-filtered-invert.rc) file
   for some tips. The "invert" option can be specified in fstab or on the
   command line respectively as follows:
 
