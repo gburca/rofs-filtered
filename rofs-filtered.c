@@ -218,9 +218,9 @@ static void log_regex_error(int error, regex_t *regex, const char* pattern) {
 
 /** Read the RegEx configuration file */
 static int read_config(const char *conf_file) {
-#define MAX_LINE 1024
     regex_t *regex, *ignore_pattern;
-    char line[MAX_LINE];
+    char *line = NULL;
+    size_t line_size = 0;
     int regcomp_res, pcount = 0;
     char *eol = NULL;
 
@@ -243,7 +243,7 @@ static int read_config(const char *conf_file) {
         return -1;
     }
 
-    while ( fgets(line, MAX_LINE, fh) ) {
+    while ( getline(&line, &line_size, fh) >= 0 ) {
         // Ignore comments or empty lines in the config file
         if (! regexec(ignore_pattern, line, 0, NULL, 0)) continue;
 
@@ -270,6 +270,7 @@ static int read_config(const char *conf_file) {
     pattern_count = pcount;
 
     regfree(ignore_pattern);
+    free(line)
     fclose(fh);
     return 0;
 }

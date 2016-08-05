@@ -35,7 +35,7 @@ AC_FUNC_LSTAT
 AC_FUNC_LSTAT_FOLLOWS_SLASHED_SYMLINK
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
-AC_CHECK_FUNCS([memset regcomp])
+AC_CHECK_FUNCS([memset regcomp getline])
 
 # Checks for libraries.
 AC_ARG_WITH(libfuse,
