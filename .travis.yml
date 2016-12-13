@@ -15,6 +15,7 @@ addons:
       - libfuse-dev
       - fuse-utils
 
+# Keep these dependencies in sync with README.md
 # https://github.com/travis-ci/travis-ci/issues/5377
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update             ; fi
