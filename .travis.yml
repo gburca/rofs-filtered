@@ -25,7 +25,9 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libtool    ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install intltool   ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gettext    ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install osxfuse    ; fi
+  
+# https://github.com/osxfuse/osxfuse/issues/337
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew cask install osxfuse    ; fi
 
 script:
   - ./autogen.sh
