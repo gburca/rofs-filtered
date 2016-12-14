@@ -7,6 +7,30 @@ os:
 compiler:
   - gcc
 
+branches:
+  only:
+    - master
+    - coverity_scan
+
+env:
+  global:
+    # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
+    # via the "travis encrypt" command using the project repo's public key
+    - secure: "hKdAfXJvjXezVUKgTLyu0/i/BF/OZoE7jN/Wa3UGFS1vt76GTyOHWXKPZuEQXLIDIh2CPL8Zqe0Hd8GpauA7zP4C2g9HhrivlI7DyuF3Ju9hXdg6/LyENrx6zT1YolkqskbfJUUHMQaf2OpZ1Jcb+8GvT9NWt9qfg1ex4Hqk4in62qqf+zbKUTqYTrrclUMGk0QSOPV6LV+Kqi8YmMK/5TTKhrP1gYQMmLs03BYKlOgdXP998Q6L+QkCHvYZn5SWpOWx1XYEZODOAjtelvCIpvIkgz7nM8hs76tJueax+ibwok7LwNki6DjF0gYRid7LmJNcLdtrk9Lmo0DDGOOAtPm8oRQ9SOS9FU72MP7C6Vj6v8DZvjs1EwtVRCp2OLypMJF1Xf+eVt+Z9ukTyp+Uja6c3Tn8edtJ8+bBhBqfqOvay/uOCkMkMpY5ylAFPPaYNBT/2imHK0qbH5fUGursu4M6weKdJurOZQctWaPrYMETGvNy9Y2MXe/jjjKU92EuumMouUAAPkzN7eeyGlOVTc1boE2MG1cQ8OB8Wxd3O12/b34iv4D4Aa+QEhP3T6UBmltWLEz/D+aUDDqfpjv0nxdTfM5NfHN1rjCzdAJFW1hhKFVdvMXc7ivKt+9cJdsmmZDUrgWnQNvup+OY7D1gH1fIZt9b3qA5AAuN20+bfhc="
+
+before_install:
+  - echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
+
+addons:
+  coverity_scan:
+    project:
+      name: "gburca/rofs-filtered"
+      description: "Build submitted via Travis CI"
+    notification_email: gburca-coverity@ebixio.com
+    #build_command_prepend: "./configure; make clean"
+    build_command: "make -j 4"
+    branch_pattern: coverity_scan
+
 # Keep these dependencies in sync with README.md
 addons:
   apt:
