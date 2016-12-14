@@ -270,7 +270,7 @@ static int read_config(const char *conf_file) {
     pattern_count = pcount;
 
     regfree(ignore_pattern);
-    free(line)
+    free(line);
     fclose(fh);
     return 0;
 }
