@@ -20,7 +20,11 @@ env:
 
 addons:
   apt:
+    sources:
+      - george-edison55-precise-backports # cmake 3.2.3
     packages:
+      - cmake
+      - cmake-data
       # Keep these dependencies in sync with README.md
       - libfuse2
       - libfuse-dev
@@ -64,19 +68,15 @@ addons:
 # https://github.com/travis-ci/travis-ci/issues/5377
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca- ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update             ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install pkg-config ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install autoconf   ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install automake   ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libtool    ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install intltool   ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gettext    ; fi
 
 # https://github.com/osxfuse/osxfuse/issues/337
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew cask install osxfuse    ; fi
 
+before_script:
+  - mkdir build
+  - cd build
+  - cmake ..
+
 script:
-  - ./autogen.sh
-  - ./configure
   - make
   - sudo make install
