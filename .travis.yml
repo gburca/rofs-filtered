@@ -18,30 +18,52 @@ env:
     # via the "travis encrypt" command using the project repo's public key
     - secure: "hKdAfXJvjXezVUKgTLyu0/i/BF/OZoE7jN/Wa3UGFS1vt76GTyOHWXKPZuEQXLIDIh2CPL8Zqe0Hd8GpauA7zP4C2g9HhrivlI7DyuF3Ju9hXdg6/LyENrx6zT1YolkqskbfJUUHMQaf2OpZ1Jcb+8GvT9NWt9qfg1ex4Hqk4in62qqf+zbKUTqYTrrclUMGk0QSOPV6LV+Kqi8YmMK/5TTKhrP1gYQMmLs03BYKlOgdXP998Q6L+QkCHvYZn5SWpOWx1XYEZODOAjtelvCIpvIkgz7nM8hs76tJueax+ibwok7LwNki6DjF0gYRid7LmJNcLdtrk9Lmo0DDGOOAtPm8oRQ9SOS9FU72MP7C6Vj6v8DZvjs1EwtVRCp2OLypMJF1Xf+eVt+Z9ukTyp+Uja6c3Tn8edtJ8+bBhBqfqOvay/uOCkMkMpY5ylAFPPaYNBT/2imHK0qbH5fUGursu4M6weKdJurOZQctWaPrYMETGvNy9Y2MXe/jjjKU92EuumMouUAAPkzN7eeyGlOVTc1boE2MG1cQ8OB8Wxd3O12/b34iv4D4Aa+QEhP3T6UBmltWLEz/D+aUDDqfpjv0nxdTfM5NfHN1rjCzdAJFW1hhKFVdvMXc7ivKt+9cJdsmmZDUrgWnQNvup+OY7D1gH1fIZt9b3qA5AAuN20+bfhc="
 
-before_install:
-  - echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
-
 addons:
+  apt:
+    packages:
+      # Keep these dependencies in sync with README.md
+      - libfuse2
+      - libfuse-dev
+      - fuse-utils
+  # Coverity addon fails on osx:
+  # http://stackoverflow.com/questions/38902793/travisci-coverity-warning-no-files-were-emitted
   coverity_scan:
     project:
       name: "gburca/rofs-filtered"
       description: "Build submitted via Travis CI"
     notification_email: gburca-coverity@ebixio.com
-    #build_command_prepend: "./configure; make clean"
-    build_command: "make -j 4"
+    build_command_prepend: "./autogen.sh && ./configure"
+    build_command: "make"
     branch_pattern: coverity_scan
 
-# Keep these dependencies in sync with README.md
-addons:
-  apt:
-    packages:
-      - libfuse2
-      - libfuse-dev
-      - fuse-utils
+# Alternative way of specifying the build matrix. Compiler is incorrectly
+# parsed as ["gcc"] instead of "gcc", causing the build to fail.
+#matrix:
+#  include:
+#    - os: linux
+#      compier: gcc
+#      env:
+#        - COVERITY_SCAN_PROJECT_NAME="$TRAVIS_REPO_SLUG"
+#        - COVERITY_SCAN_BRANCH_PATTERN="coverity_scan"
+#        - COVERITY_SCAN_NOTIFICATION_EMAIL="gburca-coverity@ebixio.com"
+#        - COVERITY_SCAN_BUILD_COMMAND_PREPEND="./autogen.sh && ./configure"
+#        - COVERITY_SCAN_BUILD_COMMAND="make"
+#      script:
+#        - curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | bash
+#    - os: osx
+#      compiler: clang
+#      env:
+#        - COVERITY_SCAN_PROJECT_NAME="$TRAVIS_REPO_SLUG"
+#        - COVERITY_SCAN_BRANCH_PATTERN="coverity_scan"
+#        - COVERITY_SCAN_NOTIFICATION_EMAIL="gburca-coverity@ebixio.com"
+#        - COVERITY_SCAN_BUILD_COMMAND_PREPEND="./autogen.sh && ./configure && cov-configure --comptype clang --compiler clang"
+#        - COVERITY_SCAN_BUILD_COMMAND="make"
+#      script:
+#        - curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | bash || true
 
-# Keep these dependencies in sync with README.md
 # https://github.com/travis-ci/travis-ci/issues/5377
 before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca- ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update             ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install pkg-config ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install autoconf   ; fi
@@ -49,7 +71,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libtool    ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install intltool   ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gettext    ; fi
-  
+
 # https://github.com/osxfuse/osxfuse/issues/337
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew cask install osxfuse    ; fi
 
