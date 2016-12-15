@@ -27,38 +27,39 @@ addons:
       - fuse-utils
   # Coverity addon fails on osx:
   # http://stackoverflow.com/questions/38902793/travisci-coverity-warning-no-files-were-emitted
-  #coverity_scan:
-  #  project:
-  #    name: "gburca/rofs-filtered"
-  #    description: "Build submitted via Travis CI"
-  #  notification_email: gburca-coverity@ebixio.com
-  #  build_command_prepend: "./autogen.sh && ./configure"
-  #  build_command: "make"
-  #  branch_pattern: coverity_scan
+  coverity_scan:
+    project:
+      name: "gburca/rofs-filtered"
+      description: "Build submitted via Travis CI"
+    notification_email: gburca-coverity@ebixio.com
+    build_command_prepend: "./autogen.sh && ./configure"
+    build_command: "make"
+    branch_pattern: coverity_scan
 
-matrix:
-  include:
-    - os: linux
-      compier:
-        - gcc
-      env:
-        - COVERITY_SCAN_PROJECT_NAME="$TRAVIS_REPO_SLUG"
-        - COVERITY_SCAN_BRANCH_PATTERN="coverity_scan"
-        - COVERITY_SCAN_NOTIFICATION_EMAIL="gburca-coverity@ebixio.com"
-        - COVERITY_SCAN_BUILD_COMMAND_PREPEND="./autogen.sh && ./configure"
-        - COVERITY_SCAN_BUILD_COMMAND="make"
-      script:
-        - curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | bash || true
-    #- os: osx
-    #  compiler: clang
-    #  env:
-    #    - COVERITY_SCAN_PROJECT_NAME="$TRAVIS_REPO_SLUG"
-    #    - COVERITY_SCAN_BRANCH_PATTERN="coverity_scan"
-    #    - COVERITY_SCAN_NOTIFICATION_EMAIL="gburca-coverity@ebixio.com"
-    #    - COVERITY_SCAN_BUILD_COMMAND_PREPEND="./autogen.sh && ./configure"
-    #    - COVERITY_SCAN_BUILD_COMMAND="make"
-    #  script:
-    #    - curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | bash || true
+# Alternative way of specifying the build matrix. Compiler is incorrectly
+# parsed as ["gcc"] instead of "gcc", causing the build to fail.
+#matrix:
+#  include:
+#    - os: linux
+#      compier: gcc
+#      env:
+#        - COVERITY_SCAN_PROJECT_NAME="$TRAVIS_REPO_SLUG"
+#        - COVERITY_SCAN_BRANCH_PATTERN="coverity_scan"
+#        - COVERITY_SCAN_NOTIFICATION_EMAIL="gburca-coverity@ebixio.com"
+#        - COVERITY_SCAN_BUILD_COMMAND_PREPEND="./autogen.sh && ./configure"
+#        - COVERITY_SCAN_BUILD_COMMAND="make"
+#      script:
+#        - curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | bash
+#    - os: osx
+#      compiler: clang
+#      env:
+#        - COVERITY_SCAN_PROJECT_NAME="$TRAVIS_REPO_SLUG"
+#        - COVERITY_SCAN_BRANCH_PATTERN="coverity_scan"
+#        - COVERITY_SCAN_NOTIFICATION_EMAIL="gburca-coverity@ebixio.com"
+#        - COVERITY_SCAN_BUILD_COMMAND_PREPEND="./autogen.sh && ./configure && cov-configure --comptype clang --compiler clang"
+#        - COVERITY_SCAN_BUILD_COMMAND="make"
+#      script:
+#        - curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | bash || true
 
 # https://github.com/travis-ci/travis-ci/issues/5377
 before_install:
