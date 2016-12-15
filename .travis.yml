@@ -39,7 +39,8 @@ addons:
 matrix:
   include:
     - os: linux
-      compier: gcc
+      compier:
+        - gcc
       env:
         - COVERITY_SCAN_PROJECT_NAME="$TRAVIS_REPO_SLUG"
         - COVERITY_SCAN_BRANCH_PATTERN="coverity_scan"
@@ -48,16 +49,16 @@ matrix:
         - COVERITY_SCAN_BUILD_COMMAND="make"
       script:
         - curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | bash || true
-    - os: osx
-      compiler: clang
-      env:
-        - COVERITY_SCAN_PROJECT_NAME="$TRAVIS_REPO_SLUG"
-        - COVERITY_SCAN_BRANCH_PATTERN="coverity_scan"
-        - COVERITY_SCAN_NOTIFICATION_EMAIL="gburca-coverity@ebixio.com"
-        - COVERITY_SCAN_BUILD_COMMAND_PREPEND="./autogen.sh && ./configure"
-        - COVERITY_SCAN_BUILD_COMMAND="make"
-      script:
-        - curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | bash || true
+    #- os: osx
+    #  compiler: clang
+    #  env:
+    #    - COVERITY_SCAN_PROJECT_NAME="$TRAVIS_REPO_SLUG"
+    #    - COVERITY_SCAN_BRANCH_PATTERN="coverity_scan"
+    #    - COVERITY_SCAN_NOTIFICATION_EMAIL="gburca-coverity@ebixio.com"
+    #    - COVERITY_SCAN_BUILD_COMMAND_PREPEND="./autogen.sh && ./configure"
+    #    - COVERITY_SCAN_BUILD_COMMAND="make"
+    #  script:
+    #    - curl -s 'https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh' | bash || true
 
 # https://github.com/travis-ci/travis-ci/issues/5377
 before_install:
