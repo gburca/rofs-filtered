@@ -223,24 +223,28 @@ static int read_config(const char *conf_file) {
     size_t line_size = 0;
     int regcomp_res, pcount = 0;
     char *eol = NULL;
+    int ret = 0;
 
     FILE *fh = fopen(conf_file, "r");
     if (fh == NULL) {
         log_msg(LOG_ERR, "Failed to open config file: %s", conf_file);
-        return -1;
+        ret = -1;
+        goto exit;
     }
 
     // Config file lines we want to ignore
     ignore_pattern = (regex_t *)malloc(sizeof(regex_t));
     if (! ignore_pattern) {
         log_msg(LOG_ERR, "Out of memory!");
-        return -1;
+        ret = -2;
+        goto free_fh;
     }
     regcomp_res = regcomp(ignore_pattern, "^#|^\\s*$",
                     REG_EXTENDED | REG_NOSUB);
     if (regcomp_res) {
         log_msg(LOG_ERR, "Failed compiling config parser regex.");
-        return -1;
+        ret = -3;
+        goto free_ignore;
     }
 
     while ( getline(&line, &line_size, fh) >= 0 ) {
@@ -250,7 +254,8 @@ static int read_config(const char *conf_file) {
         regex = (regex_t *)malloc(sizeof(regex_t));
         if (! regex) {
             log_msg(LOG_ERR, "Out of memory!");
-            return -1;
+            ret = -4;
+            goto free_patterns;
         }
 
         // Remove the \n EOL
@@ -259,20 +264,40 @@ static int read_config(const char *conf_file) {
         regcomp_res = regcomp(regex, line, REG_EXTENDED | REG_NOSUB);
         if ( regcomp_res ) {
             log_regex_error(regcomp_res, regex, line);
+            free(regex);
         } else {
             // Add regex to the stash
             pcount++;
-            patterns = realloc(patterns, sizeof(regex_t *) * pcount);
+            regex_t **more_patterns = realloc(patterns, sizeof(regex_t *) * pcount);
+            if (more_patterns) {
+                patterns = more_patterns;
+            } else {
+                log_msg(LOG_ERR, "Out of memory!");
+                ret = -5;
+                goto free_patterns;
+            }
             patterns[pcount - 1] = regex;
         }
     }
 
     pattern_count = pcount;
+    ret = 0;
+    goto free_norm;
 
+free_patterns:
+    free(patterns);
+    patterns = NULL;
+    pattern_count = 0;
+
+free_norm:
     regfree(ignore_pattern);
     free(line);
+free_ignore:
+    free(ignore_pattern);
+free_fh:
     fclose(fh);
-    return 0;
+exit:
+    return ret;
 }
 
 /** If the file name matches one of the RegEx patterns, hide it. */
@@ -347,7 +372,7 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     (void) offset;
     (void) fi;
 
-    char *trpath=translate_path(path);
+    char *trpath = translate_path(path);
 
     if (!trpath) {
         errno = ENOMEM;
@@ -364,6 +389,7 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         char *fullPath = concat_path(path, de->d_name);
 
         if (!fullPath) {
+            closedir(dp);
             errno = ENOMEM;
             return -errno;
         }
@@ -752,12 +778,19 @@ int main(int argc, char *argv[]) {
     fuse_opt_parse(&args, &conf, rofs_opts, rofs_opt_proc);
 
     if (conf.config == NULL) conf.config = default_config_file;
-    log_msg(LOG_INFO, "%s: Starting up. Using source: %s and config: %s", PACKAGE_STRING, conf.rw_path, conf.config);
 
-    if (conf.rw_path == NULL || access(conf.rw_path, F_OK)) {
+    if (conf.rw_path == NULL) {
+        log_msg(LOG_ERR, "%s: A source directory was not provided.", PACKAGE_STRING);
+        log_msg(LOG_ERR, "%s: See '%s -h' for usage.", PACKAGE_STRING, argv[0]);
+        exit(2);
+    }
+
+    if (access(conf.rw_path, F_OK)) {
         log_msg(LOG_ERR, "%s: The following source directory does not exist: %s", PACKAGE_STRING, conf.rw_path);
         exit(2);
     }
+
+    log_msg(LOG_INFO, "%s: Starting up. Using source: %s and config: %s", PACKAGE_STRING, conf.rw_path, conf.config);
 
     if (read_config(conf.config)) {
         log_msg(LOG_ERR, "%s: Error parsing config file: %s", PACKAGE_STRING, conf.config);
