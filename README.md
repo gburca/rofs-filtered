@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/gburca/rofs-filtered.svg?branch=master)](https://travis-ci.org/gburca/rofs-filtered)
+[![Coverity](https://scan.coverity.com/projects/11175/badge.svg)](https://scan.coverity.com/projects/gburca-rofs-filtered)
 
 This FUSE file system allows the user to mount a directory tree as read-only
 and filter the files shown in the read-only directory tree based on regular
