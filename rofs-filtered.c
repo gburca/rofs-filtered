@@ -271,12 +271,13 @@ static int read_config(const char *conf_file) {
             regex_t **more_patterns = realloc(patterns, sizeof(regex_t *) * pcount);
             if (more_patterns) {
                 patterns = more_patterns;
+                patterns[pcount - 1] = regex;
             } else {
                 log_msg(LOG_ERR, "Out of memory!");
+                pcount--;
                 ret = -5;
                 goto free_patterns;
             }
-            patterns[pcount - 1] = regex;
         }
     }
 
@@ -285,6 +286,10 @@ static int read_config(const char *conf_file) {
     goto free_norm;
 
 free_patterns:
+    free(regex);
+    while (pcount--) {
+        free(patterns[pcount]);
+    }
     free(patterns);
     patterns = NULL;
     pattern_count = 0;
