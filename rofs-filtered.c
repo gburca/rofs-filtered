@@ -1,9 +1,9 @@
 /* vi:ai:tabstop=8:shiftwidth=4:softtabstop=4:expandtab
  *
  * Author: Gabriel Burca (gburca dash fuse at ebixio dot com)
- * Version: 1.5
+ * Version: 1.7
  * Latest version:
- * 	https://github.com/gburca/rofs-filtered
+ *      https://github.com/gburca/rofs-filtered
  *
  * This FUSE file system allows the user to mount a directory read-only and filter
  * the files shown in the read-only directory based on regular expressions found in

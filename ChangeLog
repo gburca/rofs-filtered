@@ -1,3 +1,6 @@
+2016-12-15 Gabriel Burca <gburca-fuse@ebixio.com>
+	* Fixed a number of resource leaks in error cases.
+
 2015-04-06 Gabriel Burca <gburca-fuse@ebixio.com>
 	* Fixed Mac OS X build errors (contributed by William Entriken)
 

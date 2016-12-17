@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/gburca/rofs-filtered.svg?branch=master)](https://travis-ci.org/gburca/rofs-filtered)
+[![Coverity](https://scan.coverity.com/projects/11175/badge.svg)](https://scan.coverity.com/projects/gburca-rofs-filtered)
 
 This FUSE file system allows the user to mount a directory tree as read-only
 and filter the files shown in the read-only directory tree based on regular
@@ -27,18 +28,17 @@ Get the latest version from:
 * libfuse2
 * libfuse-dev
 * fuse-utils
-	Version 2.5 or later of FUSE is required.
+  * Version 2.5 or later of FUSE is required.
 
 
 ### Building:
 ```
-./autogen.sh
-./configure
+mkdir build
+cd build
+cmake ..
 make
 sudo make install
 ```
-
-See also the INSTALL file for more build and install instructions.
 
 On Mac OS X 10.10 Yosemite or later you can use [Homebrew](http://brew.sh/) to install:
 
