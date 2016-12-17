@@ -36,7 +36,7 @@ addons:
       name: "gburca/rofs-filtered"
       description: "Build submitted via Travis CI"
     notification_email: gburca-coverity@ebixio.com
-    build_command_prepend: "./autogen.sh && ./configure"
+    build_command_prepend: "cov-configure --comptype gcc --compiler gcc-4.8 && mkdir coverity && cd coverity && cmake .."
     build_command: "make"
     branch_pattern: coverity_scan
 
@@ -73,6 +73,11 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew cask install osxfuse    ; fi
 
 before_script:
+  - if [[ "${COVERITY_SCAN_BRANCH}" == 1 ]];
+    then
+      echo "Skip build on coverity_scan branch.";
+      exit 0;
+    fi
   - mkdir build
   - cd build
   - cmake ..
