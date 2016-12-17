@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(rofs-filtered VERSION 1.5)
+project(rofs-filtered VERSION 1.6)
 
 include(GNUInstallDirs)
 include(CheckIncludeFile)
