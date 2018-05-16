@@ -112,10 +112,6 @@
 # endif
 #endif
 
-
-#define STR1(s) # s
-#define STR(s) STR1(s)
-
 // Some hard-coded values for use with syslog
 static const char *EXEC_NAME = "rofs-filtered";
 static const int log_facility = LOG_DAEMON;
@@ -136,7 +132,7 @@ enum {
 
 
 #ifdef SYSCONF_DIR
-char *default_config_file = STR(SYSCONF_DIR) "/rofs-filtered.rc";
+char *default_config_file = SYSCONF_DIR "/rofs-filtered.rc";
 #else
 char *default_config_file = "/etc/rofs-filtered.rc";
 #endif
