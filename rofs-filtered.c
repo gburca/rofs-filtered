@@ -120,6 +120,7 @@ struct rofs_config {
     char *rw_path;
     char *config;
     int invert;
+    int debug;
 };
 
 // Global to store our configuration (the option parsing results)
@@ -127,7 +128,8 @@ struct rofs_config conf;
 
 enum {
     KEY_HELP,
-    KEY_VERSION
+    KEY_VERSION,
+    KEY_DEBUG,
 };
 
 
@@ -141,10 +143,12 @@ regex_t **patterns = NULL;
 int pattern_count = 0;
 
 /** Log a message to syslog */
-static void log_msg(const int level, const char *format, ... /*args*/) {
-    va_list ap;
-    va_start(ap, format);
+static inline void log_msg(const int level, const char *format, ... /*args*/) {
+    if (level == LOG_DEBUG && !conf.debug) return;
 
+    va_list ap;
+
+    va_start(ap, format);
     vsyslog(log_facility | level, format, ap);
     va_end(ap);
 
@@ -303,13 +307,13 @@ exit:
 
 /** If the file name matches one of the RegEx patterns, hide it. */
 static int should_hide(const char *name) {
-    //log_msg(LOG_DEBUG, "should_hide: %s", name);
     int res;
+    log_msg(LOG_DEBUG, "should_hide: %s %07o", name);
     for (int i = 0; i < pattern_count; i++) {
         res = regexec(patterns[i], name, 0, NULL, 0);
         if (res == 0) {
             // We have a match.
-            // log_msg(LOG_DEBUG, "match: %d %s", i+1, name);
+            log_msg(LOG_DEBUG, "match: %d %s", i+1, name);
             return conf.invert ? 0 : 1;
         }
     }
@@ -736,6 +740,8 @@ static struct fuse_opt rofs_opts[] = {
     FUSE_OPT_KEY("--version",   KEY_VERSION),
     FUSE_OPT_KEY("-h",          KEY_HELP),
     FUSE_OPT_KEY("--help",      KEY_HELP),
+    FUSE_OPT_KEY("-d",          KEY_DEBUG),
+    FUSE_OPT_KEY("--debug",     KEY_DEBUG),
     FUSE_OPT_END
 };
 
@@ -766,13 +772,18 @@ static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args 
         fuse_opt_add_arg(outargs, "--version");
         fuse_main(outargs->argc, outargs->argv, &callback_oper);
         exit(0);
+
+    case KEY_DEBUG:
+        fprintf(stderr, "Enable extra logging\n");
+        conf.debug = 1;
+        break;
     }
     return 1;
 }
 
 int main(int argc, char *argv[]) {
     openlog(EXEC_NAME, LOG_PID, log_facility);
-    //for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg %i = %s", i, argv[i]);
+    for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg %i = %s", i, argv[i]);
 
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     memset(&conf, 0, sizeof(conf));
@@ -800,4 +811,3 @@ int main(int argc, char *argv[]) {
 
     return fuse_main(args.argc, args.argv, &callback_oper);
 }
-
