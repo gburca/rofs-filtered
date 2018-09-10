@@ -7,7 +7,9 @@
 #
 # Please read the instructions in rofs-filtered.rc first since they apply here
 # as well.
-#
+
+type:LNK
+
 # It's not enough to specify a RegEx for a deep directory or file. The whole
 # path down to that location must also be allowed or else we won't be able to
 # navigate the file system.

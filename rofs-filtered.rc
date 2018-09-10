@@ -7,7 +7,14 @@
 #
 # This file is only read at start-up, so after modifying it, umount and
 # re-mount the directory to make it take effect.
-#
+
+# Special file types will be filtered out using these lines, see stat(2) for more details.
+type:CHR
+type:BLK
+type:LNK
+type:FIFO
+type:SOCK
+
 # Each line below should contain a RegEx (regular expression) pattern (no
 # longer than 1023 characters) that matches the files to be filtered out (or
 # hidden). The pattern is applied to the full path, starting at the mount
@@ -17,13 +24,18 @@
 # at /mnt/point :
 #
 # sourceDir/
+# |-- block
+# |-- character
 # |-- file1.flac
 # |-- file1.mp3
 # |-- file2.mp3
+# |-- file3.mp3 -> subDir1/file3.mp3
 # |-- subDir1/
 # |   |-- file3.flac
 # |   |-- file3.mp3
 # |   |-- fileA.mp3
+# |   |-- pipe|
+# |   |-- socket=
 # |   `-- subSubDir1/
 # `-- subDir2/
 #     |-- fileA.mp3
