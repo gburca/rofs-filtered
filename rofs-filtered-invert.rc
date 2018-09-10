@@ -13,9 +13,9 @@
 # navigate the file system.
 
 # First we need to allow some basic filesystem functionality:
-\/$
-\/\.$
-\/\.\.$
+/$
+/\.$
+/\.\.$
 
 # Allow access to the /subDir1 directory and everything that's under it:
 subDir1
@@ -23,4 +23,3 @@ subDir1
 # Allow access only to .flac files in subDir2
 subDir2$
 subDir2/.+\.flac$
-

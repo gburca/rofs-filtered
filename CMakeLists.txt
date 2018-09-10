@@ -29,4 +29,8 @@ target_link_libraries(rofs-filtered ${FUSE_LIBRARIES})
 # configure installation
 install(TARGETS rofs-filtered DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/rofs-filtered.rc DESTINATION ${CMAKE_INSTALL_SYSCONFDIR})
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/rofs-filtered-invert.rc DESTINATION ${CMAKE_INSTALL_SYSCONFDIR})
 
+# unit testing
+enable_testing()
+add_subdirectory(test)

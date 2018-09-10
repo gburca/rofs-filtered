@@ -46,8 +46,7 @@
 .*\.flac$
 
 # Hide subDir2 (and all its contents), no matter where it appears in the tree:
-\/subDir2$
+/subDir2$
 
 # Hide the subDir2 but only if it occurs at the root of the tree:
-^\/subDir2$
-
+^/subDir2$
