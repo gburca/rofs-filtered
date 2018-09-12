@@ -31,7 +31,7 @@ addons:
       # Keep these dependencies in sync with README.md
       - libfuse2
       - libfuse-dev
-      - fuse-utils
+      - fuse
   # Coverity addon fails on osx:
   # http://stackoverflow.com/questions/38902793/travisci-coverity-warning-no-files-were-emitted
   coverity_scan:
