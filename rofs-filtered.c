@@ -112,10 +112,6 @@
 # endif
 #endif
 
-
-#define STR1(s) # s
-#define STR(s) STR1(s)
-
 // Some hard-coded values for use with syslog
 static const char *EXEC_NAME = "rofs-filtered";
 static const int log_facility = LOG_DAEMON;
@@ -124,6 +120,7 @@ struct rofs_config {
     char *rw_path;
     char *config;
     int invert;
+    int preserve_perms; 
 };
 
 // Global to store our configuration (the option parsing results)
@@ -136,7 +133,7 @@ enum {
 
 
 #ifdef SYSCONF_DIR
-char *default_config_file = STR(SYSCONF_DIR) "/rofs-filtered.rc";
+char *default_config_file = SYSCONF_DIR "/rofs-filtered.rc";
 #else
 char *default_config_file = "/etc/rofs-filtered.rc";
 #endif
@@ -343,7 +340,9 @@ static int callback_getattr(const char *path, struct stat *st_data) {
         return -errno;
     }
     // Remove write permissions = chmod a-w
-    st_data->st_mode &= ~(S_IWUSR | S_IWGRP | S_IWOTH);
+    if (!conf.preserve_perms) {
+      st_data->st_mode &= ~(S_IWUSR | S_IWGRP | S_IWOTH);
+    }
     return 0;
 }
 
@@ -735,6 +734,7 @@ static struct fuse_opt rofs_opts[] = {
     ROFS_OPT("config=%s",       config, 0),
     ROFS_OPT("-c %s",           config, 0),
     ROFS_OPT("invert",          invert, 1),
+    ROFS_OPT("preserve-perms",   preserve_perms, 1),
 
     FUSE_OPT_KEY("-V",          KEY_VERSION),
     FUSE_OPT_KEY("--version",   KEY_VERSION),
@@ -757,6 +757,7 @@ static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args 
                 "    -o source=DIR           directory to mount as read-only and filter\n"
                 "    -o config=CONFIG_FILE   config file path (default: %s)\n"
                 "    -o invert               the config file specifies files to allow\n"
+                "    -o preserve-perms        do not clear write permission\n"
                 "\n"
                 , outargs->argv[0], default_config_file);
         // Let fuse print out its help text as well...

@@ -1,8 +1,11 @@
 language: c
 
-os:
-  - linux
-  - osx
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: required
+    - os: osx
 
 compiler:
   - gcc
@@ -20,15 +23,11 @@ env:
 
 addons:
   apt:
-    sources:
-      - george-edison55-precise-backports # cmake 3.2.3
     packages:
-      - cmake
-      - cmake-data
       # Keep these dependencies in sync with README.md
       - libfuse2
       - libfuse-dev
-      - fuse-utils
+      - fuse
   # Coverity addon fails on osx:
   # http://stackoverflow.com/questions/38902793/travisci-coverity-warning-no-files-were-emitted
   coverity_scan:
@@ -70,7 +69,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca- ; fi
 
 # https://github.com/osxfuse/osxfuse/issues/337
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew cask install osxfuse    ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew cask install osxfuse ; fi
 
 before_script:
   - if [[ "${COVERITY_SCAN_BRANCH}" == 1 ]];
