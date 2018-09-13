@@ -141,7 +141,7 @@ char *default_config_file = "/etc/rofs-filtered.rc";
 
 regex_t **patterns = NULL;
 int pattern_count = 0;
-mode_t modes[8];
+mode_t *modes = NULL;
 int modes_count = 0;
 
 /** Log a message to syslog */
@@ -218,12 +218,21 @@ static void log_regex_error(int error, regex_t *regex, const char* pattern) {
     regfree(regex);
 }
 
-static void add_mode(mode_t mode) {
+static int add_mode(mode_t mode) {
     mode &= S_IFMT;
     for (int i = 0; i < modes_count; ++i)
         if (mode == modes[i])
-            return;
-    modes[modes_count++] = mode;
+            return 1;
+    int n = modes_count + 1;
+    mode_t *m = (mode_t*)realloc(modes, n * sizeof(*modes));
+    if (!m) {
+        log_msg(LOG_ERR, "Out of memory for additional type.");
+        return 0;
+    }
+    modes = m;
+    modes[modes_count] = mode;
+    modes_count = n;
+    return 1;
 }
 
 /** Read the RegEx configuration file */
@@ -271,16 +280,17 @@ static int read_config(const char *conf_file) {
         // Process types
         if (! regexec(&type_pattern, line, 0, NULL, 0)) {
             log_msg(LOG_DEBUG, "Type: %s", line+5);
-            if (strcmp (line + 5, "CHR") == 0)
-                add_mode(S_IFCHR);
-            else if (strcmp(line+5, "BLK") == 0)
-                add_mode(S_IFBLK);
-            else if (strcmp(line+5, "LNK") == 0)
-                add_mode(S_IFLNK);
-            else if (strcmp(line+5, "FIFO") == 0)
-                add_mode(S_IFIFO);
-            else if (strcmp(line+5, "SOCK") == 0)
-                add_mode(S_IFSOCK);
+            if (strcmp (line + 5, "CHR") == 0) {
+                if (!add_mode(S_IFCHR)) goto free_patterns;
+            } else if (strcmp(line+5, "BLK") == 0) {
+                if (!add_mode(S_IFBLK)) goto free_patterns;
+            } else if (strcmp(line+5, "LNK") == 0) {
+                if (!add_mode(S_IFLNK)) goto free_patterns;
+            } else if (strcmp(line+5, "FIFO") == 0) {
+                if (!add_mode(S_IFIFO)) goto free_patterns;
+            } else if (strcmp(line+5, "SOCK") == 0) {
+                if (!add_mode(S_IFSOCK)) goto free_patterns;
+            }
             continue;
         }
 
@@ -325,6 +335,9 @@ free_patterns:
     free(patterns);
     patterns = NULL;
     pattern_count = 0;
+    free(modes);
+    modes = NULL;
+    modes_count = 0;
 
 free_norm:
     free(line);
