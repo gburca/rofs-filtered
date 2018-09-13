@@ -90,5 +90,5 @@ script:
       make;
       sudo make install;
     else
-      echo "Skipping script make on coverity branch"
+      echo "Skipping script make on coverity branch";
     fi
