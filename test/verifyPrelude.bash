@@ -16,7 +16,7 @@ done
 
 # construct the sourceDir according to the reference .rc
 mkdir -p sourceDir/{subDir1/subSubDir1,subDir2}
-touch sourceDir/{file1.{flac,mp3},file2.mp3}
+touch sourceDir/{file1.{flac,mp3},file2.mp3,type:LNK}
 mknod sourceDir/block b 0 0
 mknod sourceDir/character c 0 0
 ln -s subDir1/file3.mp3 sourceDir/

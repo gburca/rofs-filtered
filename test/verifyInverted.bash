@@ -5,6 +5,7 @@ cd $(dirname "$0")
 "$EXE" $MNT -o source="$PWD"/sourceDir -o config="$SRC"/rofs-filtered-invert.rc -o invert
 . verifyPostlude.bash <<EOF
 file3.mp3
+type:LNK
 
 subDir1:
 file3.flac

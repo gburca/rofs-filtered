@@ -30,6 +30,7 @@ type:SOCK
 # |-- file1.mp3
 # |-- file2.mp3
 # |-- file3.mp3 -> subDir1/file3.mp3
+# |-- type:LNK
 # |-- subDir1/
 # |   |-- file3.flac
 # |   |-- file3.mp3
@@ -62,3 +63,6 @@ type:SOCK
 
 # Hide the subDir2 but only if it occurs at the root of the tree:
 ^/subDir2$
+
+# Hide files that mimic the mimic the special file types with a simple regex.
+.type:LNK

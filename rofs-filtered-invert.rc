@@ -9,6 +9,7 @@
 # as well.
 
 type:LNK
+.type:LNK
 
 # It's not enough to specify a RegEx for a deep directory or file. The whole
 # path down to that location must also be allowed or else we won't be able to
