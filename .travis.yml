@@ -35,8 +35,8 @@ addons:
       name: "gburca/rofs-filtered"
       description: "Build submitted via Travis CI"
     notification_email: gburca-coverity@ebixio.com
-    build_command_prepend: "cov-configure --gcc --comptype gcc --compiler gcc-4.8 && mkdir coverity && cd coverity && cmake .. && cd .."
-    build_command: "cd coverity && make"
+    build_command_prepend: "cov-configure --gcc --comptype gcc --compiler gcc-4.8 && mkdir coverity && cd coverity && cmake .."
+    build_command: "make"
     branch_pattern: coverity_scan
 
 # Alternative way of specifying the build matrix. Compiler is incorrectly
