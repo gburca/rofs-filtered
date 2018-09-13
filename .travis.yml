@@ -76,6 +76,8 @@ before_script:
     then
       echo "Skip build on coverity_scan branch.";
       exit 0;
+    else
+      echo "This is NOT a coverity build"
     fi
   - mkdir build
   - cd build
@@ -83,5 +85,10 @@ before_script:
   - cd ..
 
 script:
-  - make
-  - sudo make install
+  - if [ ${COVERITY_SCAN_BRANCH} != 1 ]; then
+      echo "Running script make and make install"
+      make;
+      sudo make install;
+    else
+      echo "Skipping script make on coverity branch"
+    fi
