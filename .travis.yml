@@ -35,7 +35,7 @@ addons:
       name: "gburca/rofs-filtered"
       description: "Build submitted via Travis CI"
     notification_email: gburca-coverity@ebixio.com
-    build_command_prepend: "cov-configure --comptype gcc --compiler gcc-4.8 && mkdir coverity && cd coverity && cmake .."
+    build_command_prepend: "cov-configure --gcc --comptype gcc --compiler gcc-4.8 && mkdir coverity && cd coverity && cmake .. && cd .."
     build_command: "make"
     branch_pattern: coverity_scan
 
@@ -80,6 +80,7 @@ before_script:
   - mkdir build
   - cd build
   - cmake ..
+  - cd ..
 
 script:
   - make
