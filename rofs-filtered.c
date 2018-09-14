@@ -120,7 +120,8 @@ struct rofs_config {
     char *rw_path;
     char *config;
     int invert;
-    int preserve_perms; 
+    int debug;
+    int preserve_perms;
 };
 
 // Global to store our configuration (the option parsing results)
@@ -128,7 +129,8 @@ struct rofs_config conf;
 
 enum {
     KEY_HELP,
-    KEY_VERSION
+    KEY_VERSION,
+    KEY_DEBUG,
 };
 
 
@@ -140,12 +142,16 @@ char *default_config_file = "/etc/rofs-filtered.rc";
 
 regex_t **patterns = NULL;
 int pattern_count = 0;
+mode_t *modes = NULL;
+int modes_count = 0;
 
 /** Log a message to syslog */
-static void log_msg(const int level, const char *format, ... /*args*/) {
-    va_list ap;
-    va_start(ap, format);
+static inline void log_msg(const int level, const char *format, ... /*args*/) {
+    if (level == LOG_DEBUG && !conf.debug) return;
 
+    va_list ap;
+
+    va_start(ap, format);
     vsyslog(log_facility | level, format, ap);
     va_end(ap);
 
@@ -213,13 +219,28 @@ static void log_regex_error(int error, regex_t *regex, const char* pattern) {
     regfree(regex);
 }
 
+static int add_mode(mode_t mode) {
+    mode &= S_IFMT;
+    for (int i = 0; i < modes_count; ++i)
+        if (mode == modes[i])
+            return 1;
+    int n = modes_count + 1;
+    mode_t *m = (mode_t*)realloc(modes, n * sizeof(*modes));
+    if (!m) {
+        log_msg(LOG_ERR, "Out of memory for additional type.");
+        return 0;
+    }
+    modes = m;
+    modes[modes_count] = mode;
+    modes_count = n;
+    return 1;
+}
+
 /** Read the RegEx configuration file */
 static int read_config(const char *conf_file) {
-    regex_t *regex, *ignore_pattern;
     char *line = NULL;
     size_t line_size = 0;
     int regcomp_res, pcount = 0;
-    char *eol = NULL;
     int ret = 0;
 
     FILE *fh = fopen(conf_file, "r");
@@ -229,40 +250,65 @@ static int read_config(const char *conf_file) {
         goto exit;
     }
 
-    // Config file lines we want to ignore
-    ignore_pattern = (regex_t *)malloc(sizeof(regex_t));
-    if (! ignore_pattern) {
-        log_msg(LOG_ERR, "Out of memory!");
-        ret = -2;
+    // File types we want to ignore
+    regex_t type_pattern;
+    regcomp_res = regcomp(&type_pattern, "^\\|\\s*type:\\s*(CHR|BLK|FIFO|LNK|SOCK)\\s*$", REG_EXTENDED);
+    if (regcomp_res) {
+        log_msg(LOG_ERR, "Failed compiling config parser regex.");
+        ret = -3;
         goto free_fh;
     }
-    regcomp_res = regcomp(ignore_pattern, "^#|^\\s*$",
+
+    // Config file lines we want to ignore
+    regex_t ignore_pattern;
+    regcomp_res = regcomp(&ignore_pattern, "^#|^\\s*$",
                     REG_EXTENDED | REG_NOSUB);
     if (regcomp_res) {
         log_msg(LOG_ERR, "Failed compiling config parser regex.");
         ret = -3;
-        goto free_ignore;
+        goto free_type;
     }
 
     while ( getline(&line, &line_size, fh) >= 0 ) {
         // Ignore comments or empty lines in the config file
-        if (! regexec(ignore_pattern, line, 0, NULL, 0)) continue;
+        if (! regexec(&ignore_pattern, line, 0, NULL, 0)) continue;
 
-        regex = (regex_t *)malloc(sizeof(regex_t));
+        // Remove the \n EOL
+        char *eol = index(line, '\n');
+        if (eol) *eol = '\0';
+
+        // Process types
+        regmatch_t match[2];
+        if (! regexec(&type_pattern, line, sizeof(match) / sizeof(*match), match, 0)) {
+            log_msg(LOG_DEBUG, "Type: %s", line+5);
+            if (strncmp(line + match[1].rm_so, "CHR", 3) == 0) {
+                if (!add_mode(S_IFCHR)) goto free_patterns;
+            } else if (strncmp(line + match[1].rm_so, "BLK", 3) == 0) {
+                if (!add_mode(S_IFBLK)) goto free_patterns;
+            } else if (strncmp(line + match[1].rm_so, "LNK", 3) == 0) {
+                if (!add_mode(S_IFLNK)) goto free_patterns;
+            } else if (strncmp(line + match[1].rm_so, "FIFO", 4) == 0) {
+                if (!add_mode(S_IFIFO)) goto free_patterns;
+            } else if (strncmp(line + match[1].rm_so, "SOCK", 4) == 0) {
+                if (!add_mode(S_IFSOCK)) goto free_patterns;
+            }
+            continue;
+        }
+
+        // Record pathname pattern
+        regex_t *regex = (regex_t *)malloc(sizeof(*regex));
         if (! regex) {
             log_msg(LOG_ERR, "Out of memory!");
             ret = -4;
             goto free_patterns;
         }
 
-        // Remove the \n EOL
-        eol = index(line, '\n');
-        if (eol) *eol = '\0';
         regcomp_res = regcomp(regex, line, REG_EXTENDED | REG_NOSUB);
         if ( regcomp_res ) {
             log_regex_error(regcomp_res, regex, line);
             free(regex);
         } else {
+            log_msg(LOG_DEBUG, "Pattern: %s", line);
             // Add regex to the stash
             pcount++;
             regex_t **more_patterns = realloc(patterns, sizeof(regex_t *) * pcount);
@@ -273,6 +319,7 @@ static int read_config(const char *conf_file) {
                 log_msg(LOG_ERR, "Out of memory!");
                 pcount--;
                 ret = -5;
+                free(regex);
                 goto free_patterns;
             }
         }
@@ -283,19 +330,21 @@ static int read_config(const char *conf_file) {
     goto free_norm;
 
 free_patterns:
-    free(regex);
     while (pcount--) {
         free(patterns[pcount]);
     }
     free(patterns);
     patterns = NULL;
     pattern_count = 0;
+    free(modes);
+    modes = NULL;
+    modes_count = 0;
 
 free_norm:
-    regfree(ignore_pattern);
     free(line);
-free_ignore:
-    free(ignore_pattern);
+    regfree(&ignore_pattern);
+free_type:
+    regfree(&type_pattern);
 free_fh:
     fclose(fh);
 exit:
@@ -303,20 +352,26 @@ exit:
 }
 
 /** If the file name matches one of the RegEx patterns, hide it. */
-static int should_hide(const char *name) {
-    //log_msg(LOG_DEBUG, "should_hide: %s", name);
-    int res;
+static int should_hide(const char *name, mode_t mode) {
+    mode &= S_IFMT;
+    log_msg(LOG_DEBUG, "should_hide: %s %07o", name, mode);
+    for (int i = 0; i < modes_count; ++i)
+        if (mode == modes[i]) {
+            log_msg(LOG_DEBUG, "type: %07o %s", mode, name);
+            return !conf.invert;
+         }
+    if (conf.invert && mode != S_IFREG && mode != S_IFDIR)
+        return conf.invert;
     for (int i = 0; i < pattern_count; i++) {
-        res = regexec(patterns[i], name, 0, NULL, 0);
+        int res = regexec(patterns[i], name, 0, NULL, 0);
         if (res == 0) {
             // We have a match.
-            // log_msg(LOG_DEBUG, "match: %d %s", i+1, name);
-            return conf.invert ? 0 : 1;
+            log_msg(LOG_DEBUG, "match: %d %s", i+1, name);
+            return !conf.invert;
         }
     }
-    return conf.invert ? 1 : 0;
+    return conf.invert;
 }
-
 
 /******************************
  *
@@ -325,18 +380,18 @@ static int should_hide(const char *name) {
  ******************************/
 
 static int callback_getattr(const char *path, struct stat *st_data) {
-    if (should_hide(path)) return -ENOENT;
-
-    int res;
     char *trpath=translate_path(path);
-
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
     }
-    res = lstat(trpath, st_data);
+
+    int res = lstat(trpath, st_data);
     free(trpath);
-    if(res == -1) {
+
+    if (should_hide(path, st_data->st_mode)) return -ENOENT;
+
+    if (res == -1) {
         return -errno;
     }
     // Remove write permissions = chmod a-w
@@ -347,16 +402,15 @@ static int callback_getattr(const char *path, struct stat *st_data) {
 }
 
 static int callback_readlink(const char *path, char *buf, size_t size) {
-    if (should_hide(path)) return -ENOENT;
+    if (should_hide(path, S_IFLNK)) return -ENOENT;
 
-    int res;
     char *trpath=translate_path(path);
-
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
     }
-    res = readlink(trpath, buf, size - 1);
+
+    int res = readlink(trpath, buf, size - 1);
     free(trpath);
     if(res == -1) {
         return -errno;
@@ -368,7 +422,7 @@ static int callback_readlink(const char *path, char *buf, size_t size) {
 static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi)
 {
-    if (should_hide(path)) return -ENOENT;
+    if (should_hide(path, S_IFREG)) return -ENOENT;
 
     DIR *dp;
     struct dirent *de;
@@ -398,7 +452,7 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
             return -errno;
         }
 
-        int hide = should_hide(fullPath);
+        int hide = should_hide(fullPath, DTTOIF(de->d_type));
         free(fullPath);
 
         if (hide) {
@@ -449,7 +503,7 @@ static int callback_symlink(const char *from, const char *to)
 }
 
 static int callback_rename(const char *from, const char *to) {
-    if (should_hide(from)) return -ENOENT;
+    if (should_hide(from, S_IFREG)) return -ENOENT;
 
     (void)from;
     (void)to;
@@ -457,7 +511,7 @@ static int callback_rename(const char *from, const char *to) {
 }
 
 static int callback_link(const char *from, const char *to) {
-    if (should_hide(from)) return -ENOENT;
+    if (should_hide(from, S_IFREG)) return -ENOENT;
 
     (void)from;
     (void)to;
@@ -465,7 +519,7 @@ static int callback_link(const char *from, const char *to) {
 }
 
 static int callback_chmod(const char *path, mode_t mode) {
-    if (should_hide(path)) return -ENOENT;
+    if (should_hide(path, S_IFREG)) return -ENOENT;
 
     (void)path;
     (void)mode;
@@ -473,7 +527,7 @@ static int callback_chmod(const char *path, mode_t mode) {
 }
 
 static int callback_chown(const char *path, uid_t uid, gid_t gid) {
-    if (should_hide(path)) return -ENOENT;
+    if (should_hide(path, S_IFREG)) return -ENOENT;
 
     (void)path;
     (void)uid;
@@ -482,7 +536,7 @@ static int callback_chown(const char *path, uid_t uid, gid_t gid) {
 }
 
 static int callback_truncate(const char *path, off_t size) {
-    if (should_hide(path)) return -ENOENT;
+    if (should_hide(path, S_IFREG)) return -ENOENT;
 
     (void)path;
     (void)size;
@@ -501,19 +555,6 @@ static int callback_utime(const char *path, struct utimbuf *buf)
  * application.
  */
 static int callback_open(const char *path, struct fuse_file_info *finfo) {
-    if (should_hide(path)) return -ENOENT;
-
-    int res;
-
-    /* We allow opens, unless they're tring to write, sneaky
-     * people.
-     */
-    int flags = finfo->flags;
-
-    if ((flags & O_WRONLY) || (flags & O_RDWR) || (flags & O_CREAT) || (flags & O_EXCL) || (flags & O_TRUNC)) {
-        return -EPERM;
-    }
-
     char *trpath=translate_path(path);
 
     if (!trpath) {
@@ -521,7 +562,28 @@ static int callback_open(const char *path, struct fuse_file_info *finfo) {
         return -errno;
     }
 
-    res = open(trpath, flags);
+    struct stat st;
+    if (lstat(trpath, &st)) {
+        free(trpath);
+        return -errno;
+    }
+
+    if (should_hide(path, st.st_mode)) {
+        free(trpath);
+        return -ENOENT;
+    }
+
+    /* We allow opens, unless they're tring to write, sneaky
+     * people.
+     */
+    int flags = finfo->flags;
+
+    if ((flags & O_WRONLY) || (flags & O_RDWR) || (flags & O_CREAT) || (flags & O_EXCL) || (flags & O_TRUNC)) {
+        free(trpath);
+        return -EPERM;
+    }
+
+    int res = open(trpath, flags);
 
     free(trpath);
     if(res == -1) {
@@ -532,18 +594,27 @@ static int callback_open(const char *path, struct fuse_file_info *finfo) {
 }
 
 static int callback_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *finfo) {
-    if (should_hide(path)) return -ENOENT;
-
-    int fd;
-    int res;
-    (void)finfo;
-
     char *trpath=translate_path(path);
 
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
     }
+
+    struct stat st;
+    if (lstat(trpath, &st)) {
+        free(trpath);
+        return -errno;
+    }
+
+    if (should_hide(path, st.st_mode)) {
+        free(trpath);
+        return -ENOENT;
+    }
+
+    int fd;
+    int res;
+    (void)finfo;
 
     errno = 0;
     fd = open(trpath, O_RDONLY);
@@ -561,7 +632,24 @@ static int callback_read(const char *path, char *buf, size_t size, off_t offset,
 }
 
 static int callback_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *finfo) {
-    if (should_hide(path)) return -ENOENT;
+    char *trpath=translate_path(path);
+
+    if (!trpath) {
+        errno = ENOMEM;
+        return -errno;
+    }
+
+    struct stat st;
+    if (lstat(trpath, &st)) {
+        free(trpath);
+        return -errno;
+    }
+
+    if (should_hide(path, st.st_mode)) {
+        free(trpath);
+        return -ENOENT;
+    }
+    free(trpath);
 
     (void)path;
     (void)buf;
@@ -572,9 +660,6 @@ static int callback_write(const char *path, const char *buf, size_t size, off_t 
 }
 
 static int callback_statfs(const char *path, struct statvfs *st_buf) {
-    if (should_hide(path)) return -ENOENT;
-
-    int res;
     char *trpath=translate_path(path);
 
     if (!trpath) {
@@ -582,7 +667,18 @@ static int callback_statfs(const char *path, struct statvfs *st_buf) {
         return -errno;
     }
 
-    res = statvfs(trpath, st_buf);
+    struct stat st;
+    if (lstat(trpath, &st)) {
+        free(trpath);
+        return -errno;
+    }
+
+    if (should_hide(path, st.st_mode)) {
+        free(trpath);
+        return -ENOENT;
+    }
+
+    int res = statvfs(trpath, st_buf);
     free(trpath);
     if (res == -1) {
         return -errno;
@@ -604,11 +700,6 @@ static int callback_fsync(const char *path, int crap, struct fuse_file_info *fin
 }
 
 static int callback_access(const char *path, int mode) {
-    if (should_hide(path)) return -ENOENT;
-
-    if (mode & W_OK) return -1; // We are ReadOnly
-
-    int res;
     char *trpath=translate_path(path);
 
     if (!trpath) {
@@ -616,8 +707,24 @@ static int callback_access(const char *path, int mode) {
         return -errno;
     }
 
+    struct stat st;
+    if (lstat(trpath, &st)) {
+        free(trpath);
+        return -errno;
+    }
+
+    if (should_hide(path, st.st_mode)) {
+        free(trpath);
+        return -ENOENT;
+    }
+
+    if (mode & W_OK) {
+        free(trpath);
+        return -1; // We are ReadOnly
+    }
+
     errno = 0;
-    res = access(trpath, mode);
+    int res = access(trpath, mode);
     free(trpath);
     if (res == -1 && errno != 0) {
         return -errno;
@@ -629,7 +736,7 @@ static int callback_access(const char *path, int mode) {
  * Set the value of an extended attribute
  */
 static int callback_setxattr(const char *path, const char *name, const char *value, size_t size, int flags) {
-    if (should_hide(path)) return -ENOENT;
+          if (should_hide(path, S_IFREG)) return -ENOENT;
 
     (void)path;
     (void)name;
@@ -643,17 +750,24 @@ static int callback_setxattr(const char *path, const char *name, const char *val
  * Get the value of an extended attribute.
  */
 static int callback_getxattr(const char *path, const char *name, char *value, size_t size) {
-    if (should_hide(path)) return -ENOENT;
-
-    int res;
-
     char *trpath=translate_path(path);
-
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
     }
-    res = lgetxattr(trpath, name, value, size);
+
+    struct stat st;
+    if (lstat(trpath, &st)) {
+        free(trpath);
+        return -errno;
+    }
+
+    if (should_hide(path, st.st_mode)) {
+        free(trpath);
+        return -ENOENT;
+    }
+
+    int res = lgetxattr(trpath, name, value, size);
     free(trpath);
     if(res == -1) {
         return -errno;
@@ -665,18 +779,24 @@ static int callback_getxattr(const char *path, const char *name, char *value, si
  * List the supported extended attributes.
  */
 static int callback_listxattr(const char *path, char *list, size_t size) {
-    if (should_hide(path)) return -ENOENT;
-
-    int res;
-
     char *trpath=translate_path(path);
-
     if (!trpath) {
         errno = ENOMEM;
         return -errno;
     }
 
-    res = llistxattr(trpath, list, size);
+    struct stat st;
+    if (lstat(trpath, &st)) {
+        free(trpath);
+        return -errno;
+    }
+
+    if (should_hide(path, st.st_mode)) {
+        free(trpath);
+        return -ENOENT;
+    }
+
+    int res = llistxattr(trpath, list, size);
     free(trpath);
     if(res == -1) {
         return -errno;
@@ -689,7 +809,7 @@ static int callback_listxattr(const char *path, char *list, size_t size) {
  * Remove an extended attribute.
  */
 static int callback_removexattr(const char *path, const char *name) {
-    if (should_hide(path)) return -ENOENT;
+    if (should_hide(path, S_IFREG)) return -ENOENT;
 
     (void)path;
     (void)name;
@@ -740,6 +860,8 @@ static struct fuse_opt rofs_opts[] = {
     FUSE_OPT_KEY("--version",   KEY_VERSION),
     FUSE_OPT_KEY("-h",          KEY_HELP),
     FUSE_OPT_KEY("--help",      KEY_HELP),
+    FUSE_OPT_KEY("-d",          KEY_DEBUG),
+    FUSE_OPT_KEY("--debug",     KEY_DEBUG),
     FUSE_OPT_END
 };
 
@@ -771,13 +893,18 @@ static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args 
         fuse_opt_add_arg(outargs, "--version");
         fuse_main(outargs->argc, outargs->argv, &callback_oper);
         exit(0);
+
+    case KEY_DEBUG:
+        fprintf(stderr, "Enable extra logging\n");
+        conf.debug = 1;
+        break;
     }
     return 1;
 }
 
 int main(int argc, char *argv[]) {
     openlog(EXEC_NAME, LOG_PID, log_facility);
-    //for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg %i = %s", i, argv[i]);
+    for (int i = 0; i < argc; i++) log_msg(LOG_DEBUG, "    arg %i = %s", i, argv[i]);
 
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     memset(&conf, 0, sizeof(conf));
@@ -805,4 +932,3 @@ int main(int argc, char *argv[]) {
 
     return fuse_main(args.argc, args.argv, &callback_oper);
 }
-
