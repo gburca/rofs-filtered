@@ -251,8 +251,7 @@ static int read_config(const char *conf_file) {
 
     // File types we want to ignore
     regex_t type_pattern;
-    regcomp_res = regcomp(&type_pattern, "^type:(CHR|BLK|FIFO|LNK|SOCK)\\s*$",
-                    REG_EXTENDED | REG_NOSUB);
+    regcomp_res = regcomp(&type_pattern, "^\\|\\s*type:\\s*(CHR|BLK|FIFO|LNK|SOCK)\\s*$", REG_EXTENDED);
     if (regcomp_res) {
         log_msg(LOG_ERR, "Failed compiling config parser regex.");
         ret = -3;
@@ -278,17 +277,18 @@ static int read_config(const char *conf_file) {
         if (eol) *eol = '\0';
 
         // Process types
-        if (! regexec(&type_pattern, line, 0, NULL, 0)) {
+        regmatch_t match[2];
+        if (! regexec(&type_pattern, line, sizeof(match) / sizeof(*match), match, 0)) {
             log_msg(LOG_DEBUG, "Type: %s", line+5);
-            if (strcmp (line + 5, "CHR") == 0) {
+            if (strncmp(line + match[1].rm_so, "CHR", 3) == 0) {
                 if (!add_mode(S_IFCHR)) goto free_patterns;
-            } else if (strcmp(line+5, "BLK") == 0) {
+            } else if (strncmp(line + match[1].rm_so, "BLK", 3) == 0) {
                 if (!add_mode(S_IFBLK)) goto free_patterns;
-            } else if (strcmp(line+5, "LNK") == 0) {
+            } else if (strncmp(line + match[1].rm_so, "LNK", 3) == 0) {
                 if (!add_mode(S_IFLNK)) goto free_patterns;
-            } else if (strcmp(line+5, "FIFO") == 0) {
+            } else if (strncmp(line + match[1].rm_so, "FIFO", 4) == 0) {
                 if (!add_mode(S_IFIFO)) goto free_patterns;
-            } else if (strcmp(line+5, "SOCK") == 0) {
+            } else if (strncmp(line + match[1].rm_so, "SOCK", 4) == 0) {
                 if (!add_mode(S_IFSOCK)) goto free_patterns;
             }
             continue;

@@ -9,11 +9,11 @@
 # re-mount the directory to make it take effect.
 
 # Special file types will be filtered out using these lines, see stat(2) for more details.
-type:CHR
-type:BLK
-type:LNK
-type:FIFO
-type:SOCK
+|type:CHR
+|type:BLK
+|type:LNK
+|type:FIFO
+|type:SOCK
 
 # Each line below should contain a RegEx (regular expression) pattern (no
 # longer than 1023 characters) that matches the files to be filtered out (or
@@ -64,5 +64,5 @@ type:SOCK
 # Hide the subDir2 but only if it occurs at the root of the tree:
 ^/subDir2$
 
-# Hide files that mimic the mimic the special file types with a simple regex.
-.type:LNK
+# Note this is a RegEx filter, not a special file type filter.
+type:LNK

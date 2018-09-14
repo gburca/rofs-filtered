@@ -8,8 +8,9 @@
 # Please read the instructions in rofs-filtered.rc first since they apply here
 # as well.
 
+# The next line denotes a special file type and the following line a RegEx.
+|type:LNK
 type:LNK
-.type:LNK
 
 # It's not enough to specify a RegEx for a deep directory or file. The whole
 # path down to that location must also be allowed or else we won't be able to
