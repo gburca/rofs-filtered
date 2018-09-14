@@ -27,7 +27,7 @@ Get the latest version from:
 ### Dependencies:
 * libfuse2
 * libfuse-dev
-* fuse-utils
+* fuse
   * Version 2.5 or later of FUSE is required.
 
 
