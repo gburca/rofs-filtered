@@ -61,7 +61,7 @@
 #include <config.h>
 #endif
 
-#if __APPLE__ 
+#if __APPLE__
 #define llistxattr(path, list, size) (listxattr(path, list, size, XATTR_NOFOLLOW))
 #define lgetxattr(path, name, value, size) (getxattr(path, name, value, size, 0, XATTR_NOFOLLOW))
 #define lsetxattr(path, name, value, size, flags) (setxattr(path, name, value, size, 0, flags | XATTR_NOFOLLOW))
@@ -452,7 +452,24 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
             return -errno;
         }
 
-        int hide = should_hide(fullPath, DTTOIF(de->d_type));
+        int stmode = DTTOIF(de->d_type);
+
+        if (stmode == DT_UNKNOWN)
+        {
+            struct stat stdata;
+            char const * const trpath = translate_path(fullPath);
+            int const res              = lstat(trpath, &stdata);
+
+            if (res) {
+                log_msg(LOG_ERR, "%s: unexpected lstat() error %d for %s", PACKAGE_STRING, errno, fullPath);
+                stmode = 0;
+            }
+            else {
+                stmode = stdata.st_mode;
+           }
+        }
+
+        int hide = should_hide(fullPath, stmode);
         free(fullPath);
 
         if (hide) {
