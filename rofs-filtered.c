@@ -254,16 +254,16 @@ int buffer_init(buffer_t * buffer, size_t size)
 
 static int regex_append(buffer_t * buffer, char * regex, size_t len)
 {
-    int need_realloc = 0;
-    while (buffer->capacity <= buffer->length + len + 3) {
-        buffer->capacity *= 2;
-        need_realloc = 1;
+    int new_capacity = buffer->capacity;
+    while (new_capacity <= buffer->length + len + 3) {
+        new_capacity *= 2;
     }
 
-    if (need_realloc) {
-        char* str = realloc(buffer->str, buffer->capacity * sizeof(*buffer->str));
+    if (new_capacity > buffer->capacity) {
+        char* str = realloc(buffer->str, new_capacity * sizeof(*buffer->str));
         if (!str) return -1;
         buffer->str = str;
+        buffer->capacity = new_capacity;
     }
 
     char * pos = buffer->str + buffer->length;
