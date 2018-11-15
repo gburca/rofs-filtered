@@ -4,9 +4,10 @@ project(rofs-filtered VERSION 1.7)
 
 include(GNUInstallDirs)
 include(CheckIncludeFile)
-# let cmake find out custom FindFUSE script
+# let cmake find our custom FindFUSE script
 set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
      "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstallIf.cmake)
 
 add_definitions(-D_GNU_SOURCE)
 set(CMAKE_C_FLAGS "-Wall -std=c99")
@@ -28,8 +29,8 @@ target_link_libraries(rofs-filtered ${FUSE_LIBRARIES})
 
 # configure installation
 install(TARGETS rofs-filtered DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/rofs-filtered.rc DESTINATION ${CMAKE_INSTALL_SYSCONFDIR})
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/rofs-filtered-invert.rc DESTINATION ${CMAKE_INSTALL_SYSCONFDIR})
+install_if_not_exists(${CMAKE_CURRENT_SOURCE_DIR}/rofs-filtered.rc ${CMAKE_INSTALL_SYSCONFDIR})
+install_if_not_exists(${CMAKE_CURRENT_SOURCE_DIR}/rofs-filtered-invert.rc ${CMAKE_INSTALL_SYSCONFDIR})
 
 # unit testing
 enable_testing()
