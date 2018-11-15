@@ -8,13 +8,6 @@
 # This file is only read at start-up, so after modifying it, umount and
 # re-mount the directory to make it take effect.
 
-# Special file types will be filtered out using these lines, see stat(2) for more details.
-|type:CHR
-|type:BLK
-|type:LNK
-|type:FIFO
-|type:SOCK
-
 # Each line below should contain a RegEx (regular expression) pattern (no
 # longer than 1023 characters) that matches the files to be filtered out (or
 # hidden). The pattern is applied to the full path, starting at the mount
@@ -63,6 +56,16 @@
 
 # Hide the subDir2 but only if it occurs at the root of the tree:
 ^/subDir2$
+
+# Since a RegEx can not start with '|' (vertical bar), this symbol is used to
+# escape out of RegEx mode and introduce special configuration flags.
+#
+# Special file types will be filtered out using these lines, see stat(2) for more details.
+|type:CHR
+|type:BLK
+|type:LNK
+|type:FIFO
+|type:SOCK
 
 # Note this is a RegEx filter, not a special file type filter.
 type:LNK
