@@ -140,8 +140,7 @@ char *default_config_file = SYSCONF_DIR "/rofs-filtered.rc";
 char *default_config_file = "/etc/rofs-filtered.rc";
 #endif
 
-regex_t **patterns = NULL;
-int pattern_count = 0;
+regex_t pattern;
 mode_t *modes = NULL;
 int modes_count = 0;
 
@@ -236,6 +235,48 @@ static int add_mode(mode_t mode) {
     return 1;
 }
 
+typedef struct {
+    char * str;
+    size_t capacity;
+    size_t length;
+} buffer_t;
+
+int buffer_init(buffer_t * buffer, size_t size)
+{
+    buffer->capacity = size + 1;
+    buffer->length = 0;
+    buffer->str = malloc(buffer->capacity * sizeof(*buffer->str));
+    if (!buffer->str) return -1;
+    *buffer->str = '\0';
+
+    return 0;
+}
+
+static int regex_append(buffer_t * buffer, char * regex, size_t len)
+{
+    int need_realloc = 0;
+    while (buffer->capacity <= buffer->length + len + 3) {
+        buffer->capacity *= 2;
+        need_realloc = 1;
+    }
+
+    if (need_realloc) {
+        char* str = realloc(buffer->str, buffer->capacity * sizeof(*buffer->str));
+        if (!str) return -1;
+        buffer->str = str;
+    }
+
+    char * pos = buffer->str + buffer->length;
+    if (buffer->length > 0) *pos++ = '|';
+    *pos++ = '(';
+    strncpy(pos, regex, len); pos += len;
+    *pos++ = ')';
+    *pos = '\0';
+    buffer->length = pos - buffer->str;
+
+    return 0;
+}
+
 /** Read the RegEx configuration file */
 static int read_config(const char *conf_file) {
     char *line = NULL;
@@ -269,6 +310,14 @@ static int read_config(const char *conf_file) {
         goto free_type;
     }
 
+    // Buffer to store the merged patterns
+    buffer_t buffer;
+    if (buffer_init(&buffer, 256)) {
+        log_msg(LOG_ERR, "Out of memory while scanning config.");
+        ret = -3;
+        goto free_ignore;
+    }
+
     while ( getline(&line, &line_size, fh) >= 0 ) {
         // Ignore comments or empty lines in the config file
         if (! regexec(&ignore_pattern, line, 0, NULL, 0)) continue;
@@ -282,66 +331,62 @@ static int read_config(const char *conf_file) {
         if (! regexec(&type_pattern, line, sizeof(match) / sizeof(*match), match, 0)) {
             log_msg(LOG_DEBUG, "Type: %s", line+5);
             if (strncmp(line + match[1].rm_so, "CHR", 3) == 0) {
-                if (!add_mode(S_IFCHR)) goto free_patterns;
+                if (!add_mode(S_IFCHR)) goto free_all;
             } else if (strncmp(line + match[1].rm_so, "BLK", 3) == 0) {
-                if (!add_mode(S_IFBLK)) goto free_patterns;
+                if (!add_mode(S_IFBLK)) goto free_all;
             } else if (strncmp(line + match[1].rm_so, "LNK", 3) == 0) {
-                if (!add_mode(S_IFLNK)) goto free_patterns;
+                if (!add_mode(S_IFLNK)) goto free_all;
             } else if (strncmp(line + match[1].rm_so, "FIFO", 4) == 0) {
-                if (!add_mode(S_IFIFO)) goto free_patterns;
+                if (!add_mode(S_IFIFO)) goto free_all;
             } else if (strncmp(line + match[1].rm_so, "SOCK", 4) == 0) {
-                if (!add_mode(S_IFSOCK)) goto free_patterns;
+                if (!add_mode(S_IFSOCK)) goto free_all;
             }
             continue;
         }
 
-        // Record pathname pattern
-        regex_t *regex = (regex_t *)malloc(sizeof(*regex));
-        if (! regex) {
-            log_msg(LOG_ERR, "Out of memory!");
-            ret = -4;
-            goto free_patterns;
-        }
-
-        regcomp_res = regcomp(regex, line, REG_EXTENDED | REG_NOSUB);
+        // Test if standalone regex compiles before concatenating.
+        regcomp_res = regcomp(&pattern, line, REG_EXTENDED | REG_NOSUB);
         if ( regcomp_res ) {
-            log_regex_error(regcomp_res, regex, line);
-            free(regex);
+            // This one failed, we verbosely ignore it.
+            log_regex_error(regcomp_res, &pattern, line);
         } else {
             log_msg(LOG_DEBUG, "Pattern: %s", line);
-            // Add regex to the stash
             pcount++;
-            regex_t **more_patterns = realloc(patterns, sizeof(regex_t *) * pcount);
-            if (more_patterns) {
-                patterns = more_patterns;
-                patterns[pcount - 1] = regex;
-            } else {
-                log_msg(LOG_ERR, "Out of memory!");
-                pcount--;
+            regfree(&pattern);
+            // Add regex to the buffer
+            if ( regex_append(&buffer, line, eol - line) ) {
+                log_msg(LOG_ERR, "Out of memory while scanning config.");
                 ret = -5;
-                free(regex);
-                goto free_patterns;
+                goto free_all;
             }
         }
     }
 
-    pattern_count = pcount;
+    if (pcount == 0) {
+        log_msg(LOG_ERR, "Config file contains no valid pattern.");
+        ret = -1;
+        goto free_all;
+    }
+
+    regcomp_res = regcomp(&pattern, buffer.str, REG_EXTENDED | REG_NOSUB);
+    if ( regcomp_res ) {
+        log_regex_error(regcomp_res, &pattern, buffer.str);
+        ret = -1;
+        goto free_all;
+    }
+
     ret = 0;
     goto free_norm;
 
-free_patterns:
-    while (pcount--) {
-        free(patterns[pcount]);
-    }
-    free(patterns);
-    patterns = NULL;
-    pattern_count = 0;
+free_all:
     free(modes);
     modes = NULL;
     modes_count = 0;
-
 free_norm:
+    free(buffer.str);
+    buffer.str = NULL;
     free(line);
+free_ignore:
     regfree(&ignore_pattern);
 free_type:
     regfree(&type_pattern);
@@ -362,13 +407,10 @@ static int should_hide(const char *name, mode_t mode) {
          }
     if (conf.invert && mode != S_IFREG && mode != S_IFDIR)
         return conf.invert;
-    for (int i = 0; i < pattern_count; i++) {
-        int res = regexec(patterns[i], name, 0, NULL, 0);
-        if (res == 0) {
-            // We have a match.
-            log_msg(LOG_DEBUG, "match: %d %s", i+1, name);
-            return !conf.invert;
-        }
+    if (!regexec(&pattern, name, 0, NULL, 0)) {
+        // We have a match.
+        log_msg(LOG_DEBUG, "match: %s", name);
+        return !conf.invert;
     }
     return conf.invert;
 }
