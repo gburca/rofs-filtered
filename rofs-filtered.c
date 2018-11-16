@@ -496,19 +496,24 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
         int stmode = DTTOIF(de->d_type);
 
-        if (stmode == DT_UNKNOWN)
-        {
+        if (stmode == DT_UNKNOWN) {
             struct stat stdata;
-            char const * const trpath = translate_path(fullPath);
-            int const res              = lstat(trpath, &stdata);
+            trpath = translate_path(fullPath);
+            if (!trpath) {
+                free(fullPath);
+                closedir(dp);
+                errno = ENOMEM;
+                return -errno;
+            }
+            int const res = lstat(trpath, &stdata);
+            free(trpath);
 
             if (res) {
                 log_msg(LOG_ERR, "%s: unexpected lstat() error %d for %s", PACKAGE_STRING, errno, fullPath);
                 stmode = 0;
-            }
-            else {
+            } else {
                 stmode = stdata.st_mode;
-           }
+            }
         }
 
         int hide = should_hide(fullPath, stmode);
