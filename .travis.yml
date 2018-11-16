@@ -87,5 +87,6 @@ script:
       echo "Skip script on coverity_scan branch.";
       exit 0;
     fi
-  - make;
-  - sudo make install;
+  - cd build
+  - make
+  - sudo make install
