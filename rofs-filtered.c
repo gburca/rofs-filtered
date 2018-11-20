@@ -407,10 +407,29 @@ static int should_hide(const char *name, mode_t mode) {
          }
     if (conf.invert && mode != S_IFREG && mode != S_IFDIR)
         return conf.invert;
-    if (!regexec(&pattern, name, 0, NULL, 0)) {
-        // We have a match.
-        log_msg(LOG_DEBUG, "match: %s", name);
-        return !conf.invert;
+
+    /* Append slash if directory */
+    if (mode == S_IFDIR) {
+        char *name_and_slash = malloc(strlen(name) + 2);
+        if (!name_and_slash) {
+            log_msg(LOG_DEBUG, "out of memory while handling %s", name);
+            return 0;
+        }
+        strcpy(name_and_slash, name);
+        strcat(name_and_slash, "/");
+        if (!regexec(&pattern, name_and_slash, 0, NULL, 0)) {
+            // We have a match.
+            log_msg(LOG_DEBUG, "match: %s", name_and_slash);
+            free(name_and_slash);
+            return !conf.invert;
+        }
+        free(name_and_slash);
+    } else {
+        if (!regexec(&pattern, name, 0, NULL, 0)) {
+            // We have a match.
+            log_msg(LOG_DEBUG, "match: %s", name);
+            return !conf.invert;
+        }
     }
     return conf.invert;
 }
@@ -464,7 +483,7 @@ static int callback_readlink(const char *path, char *buf, size_t size) {
 static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi)
 {
-    if (should_hide(path, S_IFREG)) return -ENOENT;
+    if (should_hide(path, S_IFDIR)) return -ENOENT;
 
     DIR *dp;
     struct dirent *de;
