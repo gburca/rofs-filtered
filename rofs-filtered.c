@@ -425,24 +425,24 @@ static int should_hide(const char *path, mode_t mode) {
 
     /* Append slash if directory */
     if (mode == S_IFDIR) {
-        char *name_and_slash = malloc(strlen(name) + 2);
-        if (!name_and_slash) {
-            log_msg(LOG_DEBUG, "out of memory while handling %s", name);
+        char *path_slash = malloc(strlen(path) + 2);
+        if (!path_slash) {
+            log_msg(LOG_DEBUG, "out of memory while handling %s", path);
             return 0;
         }
-        strcpy(name_and_slash, name);
-        strcat(name_and_slash, "/");
-        if (!regexec(&pattern, name_and_slash, 0, NULL, 0)) {
+        strcpy(path_slash, path);
+        strcat(path_slash, "/");
+        if (!regexec(&pattern, path_slash, 0, NULL, 0)) {
             // We have a match.
-            log_msg(LOG_DEBUG, "match: %s", name_and_slash);
-            free(name_and_slash);
+            log_msg(LOG_DEBUG, "match: %s", path_slash);
+            free(path_slash);
             return !conf.invert;
         }
-        free(name_and_slash);
+        free(path_slash);
     } else {
-        if (!regexec(&pattern, name, 0, NULL, 0)) {
+        if (!regexec(&pattern, path, 0, NULL, 0)) {
             // We have a match.
-            log_msg(LOG_DEBUG, "match: %s", name);
+            log_msg(LOG_DEBUG, "match: %s", path);
             return !conf.invert;
         }
     }
