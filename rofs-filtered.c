@@ -120,6 +120,7 @@ struct rofs_config {
     char *rw_path;
     char *config;
     int invert;
+    int readable;
     int debug;
     int preserve_perms;
 };
@@ -397,20 +398,53 @@ exit:
 }
 
 /** If the file name matches one of the RegEx patterns, hide it. */
-static int should_hide(const char *name, mode_t mode) {
+static int should_hide(const char *path, mode_t mode) {
     mode &= S_IFMT;
-    log_msg(LOG_DEBUG, "should_hide: %s %07o", name, mode);
+    log_msg(LOG_DEBUG, "should_hide: %s %07o", path, mode);
+    if (conf.readable) {
+        char *trpath=translate_path(path);
+        if (!trpath) {
+            log_msg(LOG_DEBUG, "untranslatable path: %s", path);
+            return 1;
+        }
+        struct stat st;
+        if (stat(trpath, &st)) {
+            log_msg(LOG_DEBUG, "unreadable: %s", path);
+            free(trpath);
+            return 1;
+        }
+        free(trpath);
+    }
     for (int i = 0; i < modes_count; ++i)
         if (mode == modes[i]) {
-            log_msg(LOG_DEBUG, "type: %07o %s", mode, name);
+            log_msg(LOG_DEBUG, "type: %07o %s", mode, path);
             return !conf.invert;
          }
     if (conf.invert && mode != S_IFREG && mode != S_IFDIR)
         return conf.invert;
-    if (!regexec(&pattern, name, 0, NULL, 0)) {
-        // We have a match.
-        log_msg(LOG_DEBUG, "match: %s", name);
-        return !conf.invert;
+
+    /* Append slash if directory */
+    if (mode == S_IFDIR) {
+        char *path_slash = malloc(strlen(path) + 2);
+        if (!path_slash) {
+            log_msg(LOG_DEBUG, "out of memory while handling %s", path);
+            return 0;
+        }
+        strcpy(path_slash, path);
+        strcat(path_slash, "/");
+        if (!regexec(&pattern, path_slash, 0, NULL, 0)) {
+            // We have a match.
+            log_msg(LOG_DEBUG, "match: %s", path_slash);
+            free(path_slash);
+            return !conf.invert;
+        }
+        free(path_slash);
+    } else {
+        if (!regexec(&pattern, path, 0, NULL, 0)) {
+            // We have a match.
+            log_msg(LOG_DEBUG, "match: %s", path);
+            return !conf.invert;
+        }
     }
     return conf.invert;
 }
@@ -464,7 +498,7 @@ static int callback_readlink(const char *path, char *buf, size_t size) {
 static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi)
 {
-    if (should_hide(path, S_IFREG)) return -ENOENT;
+    if (should_hide(path, S_IFDIR)) return -ENOENT;
 
     DIR *dp;
     struct dirent *de;
@@ -918,7 +952,8 @@ static struct fuse_opt rofs_opts[] = {
     ROFS_OPT("config=%s",       config, 0),
     ROFS_OPT("-c %s",           config, 0),
     ROFS_OPT("invert",          invert, 1),
-    ROFS_OPT("preserve-perms",   preserve_perms, 1),
+    ROFS_OPT("readable",        readable, 1),
+    ROFS_OPT("preserve-perms",  preserve_perms, 1),
 
     FUSE_OPT_KEY("-V",          KEY_VERSION),
     FUSE_OPT_KEY("--version",   KEY_VERSION),
@@ -943,7 +978,8 @@ static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args 
                 "    -o source=DIR           directory to mount as read-only and filter\n"
                 "    -o config=CONFIG_FILE   config file path (default: %s)\n"
                 "    -o invert               the config file specifies files to allow\n"
-                "    -o preserve-perms        do not clear write permission\n"
+                "    -o readable             hide unreadable files\n"
+                "    -o preserve-perms       do not clear write permission\n"
                 "\n"
                 , outargs->argv[0], default_config_file);
         // Let fuse print out its help text as well...

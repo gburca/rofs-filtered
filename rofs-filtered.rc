@@ -41,7 +41,7 @@
 # /file1.flac
 # /file1.mp3
 # /file2.mp3
-# /subDir1
+# /subDir1/
 # /subDir1/file3.flac
 # etc...
 #
@@ -52,10 +52,10 @@
 .*\.flac$
 
 # Hide subDir2 (and all its contents), no matter where it appears in the tree:
-/subDir2$
+/subDir2/$
 
 # Hide the subDir2 but only if it occurs at the root of the tree:
-^/subDir2$
+^/subDir2/$
 
 # Since a RegEx can not start with '|' (vertical bar), this symbol is used to
 # escape out of RegEx mode and introduce special configuration flags.
