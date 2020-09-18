@@ -914,7 +914,6 @@ struct fuse_operations callback_oper = {
 #define ROFS_OPT(t, p, v) { t, offsetof(struct rofs_config, p), v }
 
 static struct fuse_opt rofs_opts[] = {
-    ROFS_OPT("source=%s",       rw_path, 0),
     ROFS_OPT("config=%s",       config, 0),
     ROFS_OPT("-c %s",           config, 0),
     ROFS_OPT("invert",          invert, 1),
@@ -932,7 +931,7 @@ static struct fuse_opt rofs_opts[] = {
 static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args *outargs) {
     switch (key) {
     case KEY_HELP:
-        fprintf(stderr, "Usage: %s /mount/point -o source=/some/dir [-o config=/some/config.rc] [options]\n"
+        fprintf(stderr, "Usage: %s /source/dir /mount/point [-o config=/some/config.rc] [options]\n"
                 "\n"
                 "General options:\n"
                 "    -o opt,[opt...]         mount options\n"
@@ -940,7 +939,6 @@ static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args 
                 "    -V --version            print version\n"
                 "\n"
                 "rofs-filtered options:\n"
-                "    -o source=DIR           directory to mount as read-only and filter\n"
                 "    -o config=CONFIG_FILE   config file path (default: %s)\n"
                 "    -o invert               the config file specifies files to allow\n"
                 "    -o preserve-perms        do not clear write permission\n"
@@ -962,6 +960,11 @@ static int rofs_opt_proc(void *data, const char *arg, int key, struct fuse_args 
         fprintf(stderr, "Enable extra logging\n");
         conf.debug = 1;
         break;
+    case FUSE_OPT_KEY_NONOPT:
+        if (conf.rw_path == NULL) {
+            conf.rw_path = strdup(arg);
+            return 0;
+        }
     }
     return 1;
 }
