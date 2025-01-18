@@ -93,3 +93,22 @@ umount /the/read/only/mount/point
 rofs-filtered <Filtered-Path> -o source=<RW-Path> -o invert [-o config=/etc/filter1.rc] [FUSE options]
 ```
 
+* To debug and see verbose logging:
+```
+rofs-filtered ... -o debug -f
+```
+
+### Tips
+
+* Consider adding `fuse.rofs-filtered` to the `PRUNEFS` list in
+  `/etc/updatedb.conf` so you don't see duplicates when looking up files with
+  `locate`.
+
+* If your RW directory has a symbolic link to some other place (outside the RW
+  path), rofs-filtered will not apply to that other directory. Following the
+  example above, say you're trying to hide the `flac` files in `/music/files`,
+  but you have a link from `/music/files/more` to `/overflow/path`. When you
+  mount `/music/files`, all the `flac` files are properly filtered, but you'll
+  notice that a file such as `/overflow/path/foo.flac` still shows up. The
+  solution: instead of using symbolic links, use `mount` with the `--bind`
+  option to mount `/overflow/path` at `/music/files/more`.

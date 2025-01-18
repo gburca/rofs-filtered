@@ -2,7 +2,7 @@
 
 EXE=rofs-filtered
 SRC=/tmp
-MNT=/tmp/mnt.$$
+MNT=/tmp/rofs-filtered.mnt.$$
 
 eval set -- $(getopt 'x:s:' "$@")
 for ((;;)); do
@@ -26,6 +26,11 @@ touch sourceDir/subDir1/{file3.{flac,mp3},fileA.mp3}
 mknod sourceDir/subDir1/pipe p
 nc -lU sourceDir/subDir1/socket &
 touch sourceDir/subDir2/{fileA.mp3,file4.{flac,mp3}}
+
+mkdir -p sourceDir2/extSubDir
+touch sourceDir2/extSubDir/external-linked.txt
+ln -s "$PWD/sourceDir2/extSubDir" sourceDir/
+ln -s "$PWD/sourceDir2/extSubDir/external-linked.txt" sourceDir/
 
 # construct a place to mount the sourceDir
 mkdir -p $MNT

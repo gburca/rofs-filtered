@@ -2,3 +2,5 @@
 /build
 /Testing
 settings.json
+test/sourceDir
+test/sourceDir2

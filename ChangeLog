@@ -1,3 +1,7 @@
+2025-01-18 Gabriel Burca <gburca-fuse@ebixio.com>
+	* Converted to C++
+	* Added the extensionPriority option
+
 2016-12-15 Gabriel Burca <gburca-fuse@ebixio.com>
 	* Fixed a number of resource leaks in error cases.
 

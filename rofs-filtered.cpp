@@ -1,7 +1,7 @@
 /* vi:ai:tabstop=8:shiftwidth=4:softtabstop=4:expandtab
  *
  * Author: Gabriel Burca (gburca dash fuse at ebixio dot com)
- * Version: 1.7
+ * Version: 1.8
  * Latest version:
  *      https://github.com/gburca/rofs-filtered
  *
@@ -39,7 +39,7 @@
  * The user might need to be in the "fuse" UNIX group.
  *
  *********************************************************************************
- * Copyright (C) 2006-2014  Gabriel Burca (gburca dash fuse at ebixio dot com)
+ * Copyright (C) 2006-2025  Gabriel Burca (gburca dash fuse at ebixio dot com)
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -73,6 +73,8 @@
 // open the file "rw", fail, and bomb out because of the conflicting info.
 #define FUSE_USE_VERSION 25
 
+#include "scope_guard.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -93,6 +95,12 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+
+#include <string>
+#include <sstream>
+#include <filesystem>
+#include <fstream>
+#include <unordered_set>
 
 // AC_HEADER_DIRENT
 #if HAVE_DIRENT_H
@@ -117,8 +125,8 @@ static const char *EXEC_NAME = "rofs-filtered";
 static const int log_facility = LOG_DAEMON;
 
 struct rofs_config {
-    char *rw_path;
-    char *config;
+    const char *rw_path;
+    const char *config;
     int invert;
     int debug;
     int preserve_perms;
@@ -135,16 +143,15 @@ enum {
 
 
 #ifdef SYSCONF_DIR
-char *default_config_file = SYSCONF_DIR "/rofs-filtered.rc";
+const char *default_config_file = SYSCONF_DIR "/rofs-filtered.rc";
 #else
-char *default_config_file = "/etc/rofs-filtered.rc";
+const char *default_config_file = "/etc/rofs-filtered.rc";
 #endif
 
 regex_t pattern;
-mode_t *modes = NULL;
-int modes_count = 0;
+std::unordered_set<mode_t> modes;
 
-/** Log a message to syslog */
+/** Log a message to syslog and stderr */
 static inline void log_msg(const int level, const char *format, ... /*args*/) {
     if (level == LOG_DEBUG && !conf.debug) return;
 
@@ -160,43 +167,14 @@ static inline void log_msg(const int level, const char *format, ... /*args*/) {
     fprintf(stderr, "\n");
 }
 
-static char* concat_path(const char* p1, const char* p2) {
-    assert(p1 && p2);
-
-    size_t p1len = strlen(p1);
-    size_t p2len = strlen(p2);
-
-    assert(p1len && p2len);
-
-    // Need room for path separator and null terminator
-    char *path = malloc(p1len + p2len + 2);
-    if (!path) return NULL;
-
-    strcpy(path, p1);
-
-    if ((path[p1len - 1] != '/') && (p2[0] != '/')) {
-        // Add a "/" if neither p1 nor p2 has it.
-        strcat(path, "/");
-    } else if (path[p1len - 1] == '/') {
-        // If p1 ends in '/', we don't need it from p2
-        while (p2[0] == '/') p2++;
-    }
-
-    strcat(path, p2);
-
-    return path;
-}
-
 /** Translate an rofs path into its underlying filesystem path.
  *
  * @param path The full path, relative to the rofs mount point. For example, if
  * the rofs is mounted at /a/path and there's a /a/path/file, the 'ls /a/path'
  * command will result in calls to this function with the path argument set to
  * "/" and "/file". */
-static char* translate_path(const char* path)
-{
-
-    return concat_path(conf.rw_path, path);
+static std::filesystem::path translate_path(const std::filesystem::path &path) {
+    return conf.rw_path / path.relative_path();
 }
 
 /** Report user-friendly regex errors */
@@ -218,87 +196,19 @@ static void log_regex_error(int error, regex_t *regex, const char* pattern) {
     regfree(regex);
 }
 
-static int add_mode(mode_t mode) {
-    mode &= S_IFMT;
-    for (int i = 0; i < modes_count; ++i)
-        if (mode == modes[i])
-            return 1;
-    int n = modes_count + 1;
-    mode_t *m = (mode_t*)realloc(modes, n * sizeof(*modes));
-    if (!m) {
-        log_msg(LOG_ERR, "Out of memory for additional type.");
-        return 0;
-    }
-    modes = m;
-    modes[modes_count] = mode;
-    modes_count = n;
-    return 1;
-}
-
-typedef struct {
-    char * str;
-    size_t capacity;
-    size_t length;
-} buffer_t;
-
-int buffer_init(buffer_t * buffer, size_t size)
-{
-    buffer->capacity = size + 1;
-    buffer->length = 0;
-    buffer->str = malloc(buffer->capacity * sizeof(*buffer->str));
-    if (!buffer->str) return -1;
-    *buffer->str = '\0';
-
-    return 0;
-}
-
-static int regex_append(buffer_t * buffer, char * regex, size_t len)
-{
-    int new_capacity = buffer->capacity;
-    while (new_capacity <= buffer->length + len + 3) {
-        new_capacity *= 2;
-    }
-
-    if (new_capacity > buffer->capacity) {
-        char* str = realloc(buffer->str, new_capacity * sizeof(*buffer->str));
-        if (!str) return -1;
-        buffer->str = str;
-        buffer->capacity = new_capacity;
-    }
-
-    char * pos = buffer->str + buffer->length;
-    if (buffer->length > 0) *pos++ = '|';
-    *pos++ = '(';
-    strncpy(pos, regex, len); pos += len;
-    *pos++ = ')';
-    *pos = '\0';
-    buffer->length = pos - buffer->str;
-
-    return 0;
-}
-
 /** Read the RegEx configuration file */
-static int read_config(const char *conf_file) {
-    char *line = NULL;
-    size_t line_size = 0;
-    int regcomp_res, pcount = 0;
-    int ret = 0;
-
-    FILE *fh = fopen(conf_file, "r");
-    if (fh == NULL) {
-        log_msg(LOG_ERR, "Failed to open config file: %s", conf_file);
-        ret = -1;
-        goto exit;
-    }
+static int read_config(const std::filesystem::path &conf_file) {
+    int regcomp_res;
+    std::stringstream full_pattern;   //< Buffer to store the merged patterns
 
     // File types we want to ignore
     regex_t type_pattern;
     regcomp_res = regcomp(&type_pattern, "^\\|\\s*type:\\s*(CHR|BLK|FIFO|LNK|SOCK)\\s*$", REG_EXTENDED);
     if (regcomp_res) {
         log_msg(LOG_ERR, "Failed compiling config parser regex.");
-        ret = -3;
-        goto free_fh;
+        return -3;
     }
+    scope_guard free_type_pattern = [&](){ regfree(&type_pattern); };
 
     // Config file lines we want to ignore
     regex_t ignore_pattern;
@@ -306,105 +216,90 @@ static int read_config(const char *conf_file) {
                     REG_EXTENDED | REG_NOSUB);
     if (regcomp_res) {
         log_msg(LOG_ERR, "Failed compiling config parser regex.");
-        ret = -3;
-        goto free_type;
+        regfree(&type_pattern);
+        return -3;
     }
+    scope_guard free_ignore_pattern = [&](){ regfree(&ignore_pattern); };
 
-    // Buffer to store the merged patterns
-    buffer_t buffer;
-    if (buffer_init(&buffer, 256)) {
-        log_msg(LOG_ERR, "Out of memory while scanning config.");
-        ret = -3;
-        goto free_ignore;
+    std::ifstream input(conf_file);
+    if (input.fail()) {
+        log_msg(LOG_ERR, "Failed to open config file: %s", conf_file.c_str());
+        return -1;
     }
+    scope_guard close_file = [&](){ input.close(); };
 
-    while ( getline(&line, &line_size, fh) >= 0 ) {
+    std::string line;
+    while (std::getline(input, line)) {
         // Ignore comments or empty lines in the config file
-        if (! regexec(&ignore_pattern, line, 0, NULL, 0)) continue;
+        if (line.empty()) continue;
+        if (! regexec(&ignore_pattern, line.c_str(), 0, NULL, 0)) continue;
 
-        // Remove the \n EOL
-        char *eol = index(line, '\n');
-        if (eol) *eol = '\0';
+        if (line[line.size() - 1] == '\n') {
+            line = line.substr(0, line.size() - 1);
+        }
 
-        // Process types
         regmatch_t match[2];
-        if (! regexec(&type_pattern, line, sizeof(match) / sizeof(*match), match, 0)) {
-            log_msg(LOG_DEBUG, "Type: %s", line+5);
-            if (strncmp(line + match[1].rm_so, "CHR", 3) == 0) {
-                if (!add_mode(S_IFCHR)) goto free_all;
-            } else if (strncmp(line + match[1].rm_so, "BLK", 3) == 0) {
-                if (!add_mode(S_IFBLK)) goto free_all;
-            } else if (strncmp(line + match[1].rm_so, "LNK", 3) == 0) {
-                if (!add_mode(S_IFLNK)) goto free_all;
-            } else if (strncmp(line + match[1].rm_so, "FIFO", 4) == 0) {
-                if (!add_mode(S_IFIFO)) goto free_all;
-            } else if (strncmp(line + match[1].rm_so, "SOCK", 4) == 0) {
-                if (!add_mode(S_IFSOCK)) goto free_all;
+        if (! regexec(&type_pattern, line.c_str(), sizeof(match) / sizeof(*match), match, 0)) {
+            log_msg(LOG_DEBUG, "Type: %s", line.c_str() + 5);
+            if (strncmp(line.c_str() + match[1].rm_so, "CHR", 3) == 0) {
+                modes.emplace(S_IFCHR & S_IFMT);
+            } else if (strncmp(line.c_str() + match[1].rm_so, "BLK", 3) == 0) {
+                modes.emplace(S_IFBLK & S_IFMT);
+            } else if (strncmp(line.c_str() + match[1].rm_so, "LNK", 3) == 0) {
+                modes.emplace(S_IFLNK & S_IFMT);
+            } else if (strncmp(line.c_str() + match[1].rm_so, "FIFO", 4) == 0) {
+                modes.emplace(S_IFIFO & S_IFMT);
+            } else if (strncmp(line.c_str() + match[1].rm_so, "SOCK", 4) == 0) {
+                modes.emplace(S_IFSOCK & S_IFMT);
             }
             continue;
         }
 
         // Test if standalone regex compiles before concatenating.
-        regcomp_res = regcomp(&pattern, line, REG_EXTENDED | REG_NOSUB);
-        if ( regcomp_res ) {
+        regcomp_res = regcomp(&pattern, line.c_str(), REG_EXTENDED | REG_NOSUB);
+        if (regcomp_res) {
             // This one failed, we verbosely ignore it.
-            log_regex_error(regcomp_res, &pattern, line);
+            log_regex_error(regcomp_res, &pattern, line.c_str());
         } else {
-            log_msg(LOG_DEBUG, "Pattern: %s", line);
-            pcount++;
             regfree(&pattern);
+            log_msg(LOG_DEBUG, "Pattern: %s", line.c_str());
+            
             // Add regex to the buffer
-            if ( regex_append(&buffer, line, eol - line) ) {
-                log_msg(LOG_ERR, "Out of memory while scanning config.");
-                ret = -5;
-                goto free_all;
+            if (full_pattern.rdbuf()->in_avail()) {
+                full_pattern << "|(" << line << ")";
+            } else {
+                full_pattern << "(" << line << ")";
             }
         }
     }
 
-    if (pcount == 0) {
+    std::string pattern_str = full_pattern.str();
+    if (pattern_str.empty()) {
         log_msg(LOG_ERR, "Config file contains no valid pattern.");
-        ret = -1;
-        goto free_all;
+        return -1;
     }
 
-    regcomp_res = regcomp(&pattern, buffer.str, REG_EXTENDED | REG_NOSUB);
+    regcomp_res = regcomp(&pattern, pattern_str.c_str(), REG_EXTENDED | REG_NOSUB);
     if ( regcomp_res ) {
-        log_regex_error(regcomp_res, &pattern, buffer.str);
-        ret = -1;
-        goto free_all;
+        log_regex_error(regcomp_res, &pattern, pattern_str.c_str());
+        return -1;
     }
 
-    ret = 0;
-    goto free_norm;
+    log_msg(LOG_DEBUG, "Full regex: %s", pattern_str.c_str());
 
-free_all:
-    free(modes);
-    modes = NULL;
-    modes_count = 0;
-free_norm:
-    free(buffer.str);
-    buffer.str = NULL;
-    free(line);
-free_ignore:
-    regfree(&ignore_pattern);
-free_type:
-    regfree(&type_pattern);
-free_fh:
-    fclose(fh);
-exit:
-    return ret;
+    return 0;
 }
 
 /** If the file name matches one of the RegEx patterns, hide it. */
 static int should_hide(const char *name, mode_t mode) {
     mode &= S_IFMT;
-    log_msg(LOG_DEBUG, "should_hide: %s %07o", name, mode);
-    for (int i = 0; i < modes_count; ++i)
-        if (mode == modes[i]) {
+    log_msg(LOG_DEBUG, "should_hide test: %07o %s", mode, name);
+    for (const auto &m : modes) {
+        if (mode == m) {
             log_msg(LOG_DEBUG, "type: %07o %s", mode, name);
             return !conf.invert;
-         }
+        }
+    }
     if (conf.invert && mode != S_IFREG && mode != S_IFDIR)
         return conf.invert;
     if (!regexec(&pattern, name, 0, NULL, 0)) {
@@ -422,20 +317,15 @@ static int should_hide(const char *name, mode_t mode) {
  ******************************/
 
 static int callback_getattr(const char *path, struct stat *st_data) {
-    char *trpath=translate_path(path);
-    if (!trpath) {
-        errno = ENOMEM;
-        return -errno;
-    }
+    auto trpath = translate_path(path);
+    log_msg(LOG_DEBUG, "%s(%s, %s)", __PRETTY_FUNCTION__, path, trpath.c_str());
 
-    int res = lstat(trpath, st_data);
-    free(trpath);
+    int res = lstat(trpath.c_str(), st_data);
 
     if (should_hide(path, st_data->st_mode)) return -ENOENT;
 
-    if (res == -1) {
-        return -errno;
-    }
+    if (res == -1) return -errno;
+
     // Remove write permissions = chmod a-w
     if (!conf.preserve_perms) {
       st_data->st_mode &= ~(S_IWUSR | S_IWGRP | S_IWOTH);
@@ -444,19 +334,14 @@ static int callback_getattr(const char *path, struct stat *st_data) {
 }
 
 static int callback_readlink(const char *path, char *buf, size_t size) {
+    auto trpath = translate_path(path);
+    log_msg(LOG_DEBUG, "%s(%s, %s)", __PRETTY_FUNCTION__, path, trpath.c_str());
+
     if (should_hide(path, S_IFLNK)) return -ENOENT;
 
-    char *trpath=translate_path(path);
-    if (!trpath) {
-        errno = ENOMEM;
-        return -errno;
-    }
+    int res = readlink(trpath.c_str(), buf, size - 1);
+    if (res == -1) return -errno;
 
-    int res = readlink(trpath, buf, size - 1);
-    free(trpath);
-    if(res == -1) {
-        return -errno;
-    }
     buf[res] = '\0';
     return 0;
 }
@@ -464,6 +349,7 @@ static int callback_readlink(const char *path, char *buf, size_t size) {
 static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi)
 {
+    log_msg(LOG_DEBUG, "%s(%s)", __PRETTY_FUNCTION__, path);
     if (should_hide(path, S_IFREG)) return -ENOENT;
 
     DIR *dp;
@@ -472,52 +358,30 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     (void) offset;
     (void) fi;
 
-    char *trpath = translate_path(path);
+    auto trpath = translate_path(path);
 
-    if (!trpath) {
-        errno = ENOMEM;
-        return -errno;
-    }
-
-    dp = opendir(trpath);
-    free(trpath);
-    if (dp == NULL) {
-        return -errno;
-    }
+    dp = opendir(trpath.c_str());
+    if (dp == NULL) return -errno;
 
     while((de = readdir(dp)) != NULL) {
-        char *fullPath = concat_path(path, de->d_name);
-
-        if (!fullPath) {
-            closedir(dp);
-            errno = ENOMEM;
-            return -errno;
-        }
+        auto fullPath = std::filesystem::path(path) / de->d_name;
 
         int stmode = DTTOIF(de->d_type);
 
         if (stmode == DT_UNKNOWN) {
             struct stat stdata;
             trpath = translate_path(fullPath);
-            if (!trpath) {
-                free(fullPath);
-                closedir(dp);
-                errno = ENOMEM;
-                return -errno;
-            }
-            int const res = lstat(trpath, &stdata);
-            free(trpath);
+            int const res = lstat(trpath.c_str(), &stdata);
 
             if (res) {
-                log_msg(LOG_ERR, "%s: unexpected lstat() error %d for %s", PACKAGE_STRING, errno, fullPath);
+                log_msg(LOG_ERR, "%s: unexpected lstat() error %d for %s", PACKAGE_STRING, errno, fullPath.c_str());
                 stmode = 0;
             } else {
                 stmode = stdata.st_mode;
             }
         }
 
-        int hide = should_hide(fullPath, stmode);
-        free(fullPath);
+        int hide = should_hide(fullPath.c_str(), stmode);
 
         if (hide) {
             // hide some files and directories
@@ -619,23 +483,12 @@ static int callback_utime(const char *path, struct utimbuf *buf)
  * application.
  */
 static int callback_open(const char *path, struct fuse_file_info *finfo) {
-    char *trpath=translate_path(path);
-
-    if (!trpath) {
-        errno = ENOMEM;
-        return -errno;
-    }
+    auto trpath = translate_path(path);
+    log_msg(LOG_DEBUG, "%s(%s, %s)", __PRETTY_FUNCTION__, path, trpath.c_str());
 
     struct stat st;
-    if (lstat(trpath, &st)) {
-        free(trpath);
-        return -errno;
-    }
-
-    if (should_hide(path, st.st_mode)) {
-        free(trpath);
-        return -ENOENT;
-    }
+    if (lstat(trpath.c_str(), &st)) return -errno;
+    if (should_hide(path, st.st_mode)) return -ENOENT;
 
     /* We allow opens, unless they're tring to write, sneaky
      * people.
@@ -643,110 +496,68 @@ static int callback_open(const char *path, struct fuse_file_info *finfo) {
     int flags = finfo->flags;
 
     if ((flags & O_WRONLY) || (flags & O_RDWR) || (flags & O_CREAT) || (flags & O_EXCL) || (flags & O_TRUNC)) {
-        free(trpath);
         return -EPERM;
     }
 
-    int res = open(trpath, flags);
+    int res = open(trpath.c_str(), flags);
+    if (res == -1) return -errno;
 
-    free(trpath);
-    if(res == -1) {
-        return -errno;
-    }
     close(res);
     return 0;
 }
 
 static int callback_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *finfo) {
-    char *trpath=translate_path(path);
-
-    if (!trpath) {
-        errno = ENOMEM;
-        return -errno;
-    }
+    (void)finfo;
+    auto trpath = translate_path(path);
+    log_msg(LOG_DEBUG, "%s(%s, %s)", __PRETTY_FUNCTION__, path, trpath.c_str());
 
     struct stat st;
-    if (lstat(trpath, &st)) {
-        free(trpath);
-        return -errno;
-    }
+    if (lstat(trpath.c_str(), &st)) return -errno;
 
-    if (should_hide(path, st.st_mode)) {
-        free(trpath);
-        return -ENOENT;
-    }
+    if (should_hide(path, st.st_mode)) return -ENOENT;
 
-    int fd;
-    int res;
-    (void)finfo;
 
     errno = 0;
-    fd = open(trpath, O_RDONLY);
-    free(trpath);
+    int fd = open(trpath.c_str(), O_RDONLY);
     if (fd == -1) return -errno;
 
     errno = 0;
-    res = pread(fd, buf, size, offset);
+    int res = pread(fd, buf, size, offset);
+    if (res == -1) res = -errno;
 
-    if (res == -1) {
-        res = -errno;
-    }
     close(fd);
     return res;
 }
 
 static int callback_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *finfo) {
-    char *trpath=translate_path(path);
-
-    if (!trpath) {
-        errno = ENOMEM;
-        return -errno;
-    }
-
-    struct stat st;
-    if (lstat(trpath, &st)) {
-        free(trpath);
-        return -errno;
-    }
-
-    if (should_hide(path, st.st_mode)) {
-        free(trpath);
-        return -ENOENT;
-    }
-    free(trpath);
-
-    (void)path;
     (void)buf;
     (void)size;
     (void)offset;
     (void)finfo;
+
+    auto trpath = translate_path(path);
+    log_msg(LOG_DEBUG, "%s(%s, %s)", __PRETTY_FUNCTION__, path, trpath.c_str());
+
+    struct stat st;
+    if (lstat(trpath.c_str(), &st)) return -errno;
+
+    if (should_hide(path, st.st_mode)) return -ENOENT;
+
     return -EPERM;
 }
 
 static int callback_statfs(const char *path, struct statvfs *st_buf) {
-    char *trpath=translate_path(path);
-
-    if (!trpath) {
-        errno = ENOMEM;
-        return -errno;
-    }
+    auto trpath = translate_path(path);
+    log_msg(LOG_DEBUG, "%s(%s, %s)", __PRETTY_FUNCTION__, path, trpath.c_str());
 
     struct stat st;
-    if (lstat(trpath, &st)) {
-        free(trpath);
-        return -errno;
-    }
+    if (lstat(trpath.c_str(), &st)) return -errno;
 
-    if (should_hide(path, st.st_mode)) {
-        free(trpath);
-        return -ENOENT;
-    }
+    if (should_hide(path, st.st_mode)) return -ENOENT;
 
-    int res = statvfs(trpath, st_buf);
-    free(trpath);
-    if (res == -1) {
-        return -errno;
-    }
+    int res = statvfs(trpath.c_str(), st_buf);
+    if (res == -1) return -errno;
+
     return 0;
 }
 
@@ -764,35 +575,20 @@ static int callback_fsync(const char *path, int crap, struct fuse_file_info *fin
 }
 
 static int callback_access(const char *path, int mode) {
-    char *trpath=translate_path(path);
-
-    if (!trpath) {
-        errno = ENOMEM;
-        return -errno;
-    }
+    auto trpath = translate_path(path);
+    log_msg(LOG_DEBUG, "%s(%s, %s)", __PRETTY_FUNCTION__, path, trpath.c_str());
 
     struct stat st;
-    if (lstat(trpath, &st)) {
-        free(trpath);
-        return -errno;
-    }
+    if (lstat(trpath.c_str(), &st)) return -errno;
 
-    if (should_hide(path, st.st_mode)) {
-        free(trpath);
-        return -ENOENT;
-    }
+    if (should_hide(path, st.st_mode)) return -ENOENT;
 
-    if (mode & W_OK) {
-        free(trpath);
-        return -1; // We are ReadOnly
-    }
+    if (mode & W_OK) return -1; // We are ReadOnly
 
     errno = 0;
-    int res = access(trpath, mode);
-    free(trpath);
-    if (res == -1 && errno != 0) {
-        return -errno;
-    }
+    int res = access(trpath.c_str(), mode);
+    if (res == -1 && errno != 0) return -errno;
+
     return res;
 }
 
@@ -800,13 +596,12 @@ static int callback_access(const char *path, int mode) {
  * Set the value of an extended attribute
  */
 static int callback_setxattr(const char *path, const char *name, const char *value, size_t size, int flags) {
-          if (should_hide(path, S_IFREG)) return -ENOENT;
-
-    (void)path;
     (void)name;
     (void)value;
     (void)size;
     (void)flags;
+
+    if (should_hide(path, S_IFREG)) return -ENOENT;
     return -EPERM;
 }
 
@@ -814,28 +609,16 @@ static int callback_setxattr(const char *path, const char *name, const char *val
  * Get the value of an extended attribute.
  */
 static int callback_getxattr(const char *path, const char *name, char *value, size_t size) {
-    char *trpath=translate_path(path);
-    if (!trpath) {
-        errno = ENOMEM;
-        return -errno;
-    }
+    auto trpath = translate_path(path);
 
     struct stat st;
-    if (lstat(trpath, &st)) {
-        free(trpath);
-        return -errno;
-    }
+    if (lstat(trpath.c_str(), &st)) return -errno;
 
-    if (should_hide(path, st.st_mode)) {
-        free(trpath);
-        return -ENOENT;
-    }
+    if (should_hide(path, st.st_mode)) return -ENOENT;
 
-    int res = lgetxattr(trpath, name, value, size);
-    free(trpath);
-    if(res == -1) {
-        return -errno;
-    }
+    int res = lgetxattr(trpath.c_str(), name, value, size);
+    if (res == -1) return -errno;
+
     return res;
 }
 
@@ -843,53 +626,40 @@ static int callback_getxattr(const char *path, const char *name, char *value, si
  * List the supported extended attributes.
  */
 static int callback_listxattr(const char *path, char *list, size_t size) {
-    char *trpath=translate_path(path);
-    if (!trpath) {
-        errno = ENOMEM;
-        return -errno;
-    }
+    auto trpath = translate_path(path);
 
     struct stat st;
-    if (lstat(trpath, &st)) {
-        free(trpath);
-        return -errno;
-    }
+    if (lstat(trpath.c_str(), &st)) return -errno;
 
-    if (should_hide(path, st.st_mode)) {
-        free(trpath);
-        return -ENOENT;
-    }
+    if (should_hide(path, st.st_mode)) return -ENOENT;
 
-    int res = llistxattr(trpath, list, size);
-    free(trpath);
-    if(res == -1) {
-        return -errno;
-    }
+    int res = llistxattr(trpath.c_str(), list, size);
+    if(res == -1) return -errno;
+
     return res;
-
 }
 
 /**
  * Remove an extended attribute.
  */
 static int callback_removexattr(const char *path, const char *name) {
+    (void)name;
+
     if (should_hide(path, S_IFREG)) return -ENOENT;
 
-    (void)path;
-    (void)name;
     return -EPERM;
-
 }
 
+// /usr/include/fuse/fuse_compat.h
 struct fuse_operations callback_oper = {
     .getattr    = callback_getattr,
     .readlink   = callback_readlink,
-    .readdir    = callback_readdir,
+    // .getdir
     .mknod      = callback_mknod,
     .mkdir      = callback_mkdir,
-    .symlink    = callback_symlink,
     .unlink     = callback_unlink,
     .rmdir      = callback_rmdir,
+    .symlink    = callback_symlink,
     .rename     = callback_rename,
     .link       = callback_link,
     .chmod      = callback_chmod,
@@ -900,15 +670,25 @@ struct fuse_operations callback_oper = {
     .read       = callback_read,
     .write      = callback_write,
     .statfs     = callback_statfs,
+    // .flush
     .release    = callback_release,
     .fsync      = callback_fsync,
-    .access     = callback_access,
-
     /* Extended attributes support for userland interaction */
     .setxattr   = callback_setxattr,
     .getxattr   = callback_getxattr,
     .listxattr  = callback_listxattr,
-    .removexattr= callback_removexattr
+    .removexattr= callback_removexattr,
+
+    // .opendir
+    .readdir    = callback_readdir,
+    // .releasedir
+    // .fsyncdir
+    // .init
+    // .destroy
+    .access     = callback_access,
+    // .create
+    // .ftruncate
+    // .fgetattr
 };
 
 #define ROFS_OPT(t, p, v) { t, offsetof(struct rofs_config, p), v }
@@ -918,7 +698,9 @@ static struct fuse_opt rofs_opts[] = {
     ROFS_OPT("config=%s",       config, 0),
     ROFS_OPT("-c %s",           config, 0),
     ROFS_OPT("invert",          invert, 1),
-    ROFS_OPT("preserve-perms",   preserve_perms, 1),
+    ROFS_OPT("preserve-perms",  preserve_perms, 1),
+    ROFS_OPT("debug",           debug, 1),
+    // ROFS_OPT("debug-inner",     debug, 1),
 
     FUSE_OPT_KEY("-V",          KEY_VERSION),
     FUSE_OPT_KEY("--version",   KEY_VERSION),

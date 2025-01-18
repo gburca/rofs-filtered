@@ -69,3 +69,6 @@
 
 # Note this is a RegEx filter, not a special file type filter.
 type:LNK
+
+# Hide files based on the presence of other files. Ex: hide the mp3 file if a flac version is present.
+# |extensionPriority:flac,ogg,mp3

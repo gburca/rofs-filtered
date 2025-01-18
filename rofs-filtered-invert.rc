@@ -3,7 +3,8 @@
 # Configuration file for rofs-filtered (filtered ReadOnlyFileSystem)
 #
 # This is an example of how you need to configure things if you run
-# rofs-filtered with the "invert" option enabled.
+# rofs-filtered with the "invert" option enabled. In this mode, only
+# files/directories that match the patterns here will be visible.
 #
 # Please read the instructions in rofs-filtered.rc first since they apply here
 # as well.
@@ -21,7 +22,8 @@ type:LNK
 /\.$
 /\.\.$
 
-# Allow access to the /subDir1 directory and everything that's under it:
+# Allow access to the /subDir1 directory and everything that's under it
+# (except for special files such as pipes and sockets):
 subDir1
 
 # Allow access only to .flac files in subDir2
