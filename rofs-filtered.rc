@@ -23,6 +23,12 @@
 # |-- file1.mp3
 # |-- file2.mp3
 # |-- file3.mp3 -> subDir1/file3.mp3
+# |-- image1.raw
+# |-- image1.jpeg
+# |-- image1.jpg
+# |-- image2.jpeg
+# |-- image2.jpg
+# |-- image3.jpg
 # |-- type:LNK
 # |-- subDir1/
 # |   |-- file3.flac
@@ -70,5 +76,10 @@
 # Note this is a RegEx filter, not a special file type filter.
 type:LNK
 
-# Hide files based on the presence of other files. Ex: hide the mp3 file if a flac version is present.
+# Hide files based on the presence of other files.
+# Ex: Hide the jpg file if a jpeg or raw version is present.
+#     Also hides jpeg if raw is present.
+|extensionPriority:raw,jpeg,jpg
+
+# This option can be specified more than once
 # |extensionPriority:flac,ogg,mp3

@@ -6,6 +6,9 @@ cd $(dirname "$0")
 . verifyPostlude.bash <<EOF
 file1.mp3
 file2.mp3
+image1.raw
+image2.jpeg
+image3.jpg
 
 subDir1:
 file3.mp3

@@ -1,0 +1,15 @@
+# vim: set filetype=conf :
+#
+# Configuration file for rofs-filtered (filtered ReadOnlyFileSystem)
+#
+# Comments must start with '#' in the first column.
+# If the pattern is supposed to start with '#', use '\#' instead.
+#
+# This file is only read at start-up, so after modifying it, umount and
+# re-mount the directory to make it take effect.
+
+# Hide files based on the presence of other files.
+# Ex: Hide the jpg file if a jpeg or raw version is present.
+#     Also hides jpeg if raw is present.
+|extensionPriority:raw,jpeg,jpg
+|extensionPriority:flac,ogg,mp3

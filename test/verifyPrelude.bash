@@ -17,6 +17,7 @@ done
 # construct the sourceDir according to the reference .rc
 mkdir -p sourceDir/{subDir1/subSubDir1,subDir2}
 touch sourceDir/{file1.{flac,mp3},file2.mp3,type:LNK}
+touch sourceDir/{image1.{raw,jpeg,jpg},image2.{jpeg,jpg},image3.jpg}
 if [ "$USER" == "root" ]; then
   mknod sourceDir/block b 0 0
   mknod sourceDir/character c 0 0

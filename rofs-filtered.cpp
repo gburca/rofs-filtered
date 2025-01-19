@@ -101,6 +101,7 @@
 #include <filesystem>
 #include <fstream>
 #include <unordered_set>
+#include <unordered_map>
 
 // AC_HEADER_DIRENT
 #if HAVE_DIRENT_H
@@ -149,7 +150,9 @@ const char *default_config_file = "/etc/rofs-filtered.rc";
 #endif
 
 regex_t pattern;
+bool hasPattern;
 std::unordered_set<mode_t> modes;
+std::unordered_multimap<std::string, std::string> extPriority;
 
 /** Log a message to syslog and stderr */
 static inline void log_msg(const int level, const char *format, ... /*args*/) {
@@ -194,6 +197,18 @@ static void log_regex_error(int error, regex_t *regex, const char* pattern) {
     }
 
     regfree(regex);
+}
+
+std::vector<std::string> split(const std::string &s, char delim) {
+    std::vector<std::string> result;
+    std::stringstream ss (s);
+    std::string item;
+
+    while (getline (ss, item, delim)) {
+        result.push_back (item);
+    }
+
+    return result;
 }
 
 /** Read the RegEx configuration file */
@@ -255,6 +270,21 @@ static int read_config(const std::filesystem::path &conf_file) {
             continue;
         }
 
+        static const std::string prefix("|extensionPriority:");
+        if (line.find(prefix) == 0) {
+            auto extensions = split(line.substr(prefix.size()), ',');
+            if (extensions.empty()) continue;
+
+            static const std::string dot(".");
+            for (auto it = extensions.crbegin(); it != extensions.crend(); ++it) {
+                for (auto it2 = it + 1; it2 != extensions.crend(); ++it2) {
+                    log_msg(LOG_DEBUG, "%s overrides %s", it2->c_str(), it->c_str());
+                    extPriority.emplace(std::make_pair(dot + *it, dot + *it2));
+                }
+            }
+            continue;
+        }
+
         // Test if standalone regex compiles before concatenating.
         regcomp_res = regcomp(&pattern, line.c_str(), REG_EXTENDED | REG_NOSUB);
         if (regcomp_res) {
@@ -274,15 +304,20 @@ static int read_config(const std::filesystem::path &conf_file) {
     }
 
     std::string pattern_str = full_pattern.str();
-    if (pattern_str.empty()) {
+    if (pattern_str.empty() && extPriority.empty() && modes.empty()) {
         log_msg(LOG_ERR, "Config file contains no valid pattern.");
         return -1;
     }
 
-    regcomp_res = regcomp(&pattern, pattern_str.c_str(), REG_EXTENDED | REG_NOSUB);
-    if ( regcomp_res ) {
-        log_regex_error(regcomp_res, &pattern, pattern_str.c_str());
-        return -1;
+    if (pattern_str.empty()) {
+        hasPattern = false;
+    } else {
+        hasPattern = true;
+        regcomp_res = regcomp(&pattern, pattern_str.c_str(), REG_EXTENDED | REG_NOSUB);
+        if ( regcomp_res ) {
+            log_regex_error(regcomp_res, &pattern, pattern_str.c_str());
+            return -1;
+        }
     }
 
     log_msg(LOG_DEBUG, "Full regex: %s", pattern_str.c_str());
@@ -294,6 +329,19 @@ static int read_config(const std::filesystem::path &conf_file) {
 static int should_hide(const char *name, mode_t mode) {
     mode &= S_IFMT;
     log_msg(LOG_DEBUG, "should_hide test: %07o %s", mode, name);
+
+    if (!conf.invert && !extPriority.empty()) {
+        auto fname = translate_path(name);
+        auto ext = fname.extension();
+        auto range = extPriority.equal_range(ext.string());
+        for (auto it = range.first; it != range.second; ++it) {
+            fname.replace_extension(it->second);
+            if (std::filesystem::exists(fname)) {
+                return true;
+            }
+        }
+    }
+
     for (const auto &m : modes) {
         if (mode == m) {
             log_msg(LOG_DEBUG, "type: %07o %s", mode, name);
@@ -302,7 +350,7 @@ static int should_hide(const char *name, mode_t mode) {
     }
     if (conf.invert && mode != S_IFREG && mode != S_IFDIR)
         return conf.invert;
-    if (!regexec(&pattern, name, 0, NULL, 0)) {
+    if (hasPattern && !regexec(&pattern, name, 0, NULL, 0)) {
         // We have a match.
         log_msg(LOG_DEBUG, "match: %s", name);
         return !conf.invert;
@@ -320,11 +368,10 @@ static int callback_getattr(const char *path, struct stat *st_data) {
     auto trpath = translate_path(path);
     log_msg(LOG_DEBUG, "%s(%s, %s)", __PRETTY_FUNCTION__, path, trpath.c_str());
 
-    int res = lstat(trpath.c_str(), st_data);
+    if (lstat(trpath.c_str(), st_data)) return -errno;
 
     if (should_hide(path, st_data->st_mode)) return -ENOENT;
 
-    if (res == -1) return -errno;
 
     // Remove write permissions = chmod a-w
     if (!conf.preserve_perms) {
@@ -371,9 +418,7 @@ static int callback_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         if (stmode == DT_UNKNOWN) {
             struct stat stdata;
             trpath = translate_path(fullPath);
-            int const res = lstat(trpath.c_str(), &stdata);
-
-            if (res) {
+            if (lstat(trpath.c_str(), &stdata)) {
                 log_msg(LOG_ERR, "%s: unexpected lstat() error %d for %s", PACKAGE_STRING, errno, fullPath.c_str());
                 stmode = 0;
             } else {
